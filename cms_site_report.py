@@ -14,6 +14,8 @@ Usage:
   --days N       look back N days for metric issues (default: 3)
   --out FILE     HTML output file (default: cms_report.html)
   --all          include all sites, not only those with problems
+
+Token resolution order: --token file > GGUS_TOKEN environment variable
 """
 
 import argparse
@@ -90,24 +92,24 @@ def days_ago(ts_str):
 # ---------------------------------------------------------------------------
 def parse_report(content, problem_days=3):
     """
-    Ritorna dict: {site_name: {
-        'dates':    [str, ...],        # ultime problem_days date (più recente = ultima)
+    Returns dict: {site_name: {
+        'dates':    [str, ...],        # last problem_days dates (most recent = last)
         'SAM':      [{color, pct, tooltip, log_url}, ...],
         'HC':       [{color, pct, tooltip, log_url}, ...],
         'FTS':      [{color, pct, tooltip, log_url}, ...],
-        'ggus_old': [ticket_id, ...],  # ticket GGUS dal vecchio sistema (ggus.eu)
+        'ggus_old': [ticket_id, ...],  # GGUS tickets from legacy system (ggus.eu)
         'max_severity': int,
     }}
     """
 
-    # Normalizza spazi
+    # Normalize whitespace
     content = re.sub(r"\s+", " ", content)
 
-    # --- Estrai le informazioni sito per sito ---
-    # Ogni sito inizia con: <A NAME="T?_...">sitename</A>
+    # --- Extract site information block by block ---
+    # Each site starts with: <A NAME="T?_...">sitename</A>
     site_blocks = re.split(r'<A NAME="(T\d_[A-Z]{2}_\w+)">', content)
-    # site_blocks[0] = testo prima del primo sito
-    # poi a coppie: site_name, block_content
+    # site_blocks[0] = content before first site
+    # then pairs: site_name, block_content
 
     sites = {}
     i = 1
@@ -116,7 +118,7 @@ def parse_report(content, problem_days=3):
         block = site_blocks[i + 1]
         i += 2
 
-        # Ferma il block al prossimo sito
+        # Truncate block at the next site anchor
         next_site = block.find('<A NAME="T')
         if next_site > 0:
             block = block[:next_site]
@@ -130,14 +132,14 @@ def parse_report(content, problem_days=3):
             "max_severity": 0,
         }
 
-        # --- Ticket GGUS dal vecchio sistema (link ggus.eu) ---
+        # --- Legacy GGUS tickets (ggus.eu links) ---
         for tid in re.findall(
             r'ggus\.eu/\?mode=ticket_info&ticket_id=(\d+)', block
         ):
             site_data["ggus_old"].append(tid)
 
-        # --- Righe metriche ---
-        # Pattern cella con tooltip:
+        # --- Metric rows ---
+        # Cell pattern with tooltip:
         # STYLE="background-color: #RRGGBB"><A ... HREF="...">PCT%<SPAN>tooltip</SPAN></A>
         row_pattern = re.compile(
             r'CLASS="tdLabel1">(.*?)[<\n].*?'   # label
@@ -151,7 +153,7 @@ def parse_report(content, problem_days=3):
             re.DOTALL
         )
 
-        # Usa approccio più semplice: trova le righe per label
+        # Simpler approach: find each row by label
         for metric_label, js_key in [
             ("SAM Status:", "SAM"),
             ("Hammer Cloud:", "HC"),
@@ -165,7 +167,7 @@ def parse_report(content, problem_days=3):
             row_html = block[idx:row_end] if row_end > 0 else block[idx:idx+4000]
 
             cells = cell_pattern.findall(row_html)
-            # Tiene solo le ultime problem_days celle (più recenti)
+            # Keep only the last problem_days cells (most recent)
             cells = cells[-problem_days:]
             for color, log_url, pct, tooltip in cells:
                 status = cell_status(color)
@@ -218,7 +220,7 @@ def fetch_ggus_tickets(token, max_batches=64):
         ticket_list.extend(data)
         last_id = int(data[-1]["id"])
 
-    # Raggruppa per sito CMS
+    # Group by CMS site
     site_pattern = re.compile(r"T\d_[A-Z]{2}_\w+")
     by_site = {}
 
@@ -230,7 +232,7 @@ def fetch_ggus_tickets(token, max_batches=64):
             if m:
                 cms_site = m.group(0)
         if not cms_site:
-            continue  # skip tickets without an identifiable CMS site
+            continue  # skip tickets with no identifiable CMS site
 
         # Fetch primo articolo (descrizione)
         body = ""
@@ -289,7 +291,7 @@ def metric_html(cells, metric_name):
             f'<td class="metric-cell" style="background:{bg}" title="{tooltip}">'
             f'<a href="{log}" target="_blank">{pct}</a></td>'
         )
-    # padding se meno di 3 celle
+    # pad to 3 columns if fewer cells
     for _ in range(3 - len(cells)):
         out += "<td class='metric-cell empty'>&mdash;</td>"
     return out
@@ -327,7 +329,7 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
 
     # --- CSS + HTML ---
     html_out = f"""<!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -467,8 +469,8 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
         # Tickets section — sort by date desc, group old ones (>90 days)
         html_out += '<div class="tickets-section">'
         if tickets:
-            # ordine: CMS VO prima, poi WLCG; dentro ogni gruppo: data decrescente
-            # Con reverse=True: (1, "2026-03-20") > (0, ...) → CMS (1) viene prima
+                    # Sort: CMS VO first, then WLCG; within each group: date descending
+            # With reverse=True: (1, "2026-03-20") > (0, ...) → CMS (1) comes first
             def ticket_sort_key(t):
                 return (1 if t.get("is_cms") else 0, t["created_at"])
             tickets_sorted = sorted(tickets, key=ticket_sort_key, reverse=True)
@@ -543,11 +545,11 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
 def main():
     parser = argparse.ArgumentParser(description="CMS SST Daily Problem Report")
     parser.add_argument("--token", default="documentation/token_ggus",
-                        help="File con il Bearer token GGUS")
+                        help="File containing the GGUS Bearer token")
     parser.add_argument("--days", type=int, default=3,
                         help="Look-back window in days (default: 3)")
     parser.add_argument("--out", default="cms_report.html",
-                        help="File HTML di output (default: cms_report.html)")
+                        help="HTML output file (default: cms_report.html)")
     parser.add_argument("--all", action="store_true", dest="show_all",
                         help="Include all sites, even those without problems")
     args = parser.parse_args()
@@ -561,7 +563,7 @@ def main():
         token = os.environ["GGUS_TOKEN"].strip()
         print("Using token from GGUS_TOKEN env var", file=sys.stderr)
     else:
-        print(f"[ERROR] Token not found: set --token FILE or GGUS_TOKEN env var", file=sys.stderr)
+        print("[ERROR] Token not found: set --token FILE or GGUS_TOKEN env var", file=sys.stderr)
         sys.exit(1)
 
     # --- Fetch report.html ---
@@ -569,10 +571,10 @@ def main():
     try:
         report_content = fetch(REPORT_URL)
     except Exception as e:
-        print(f"[ERROR] Impossibile scaricare report.html: {e}", file=sys.stderr)
+        print(f"[ERROR] Failed to fetch report.html: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print("Parsing metrics ...", file=sys.stderr)
+    print("Parsing metrics...", file=sys.stderr)
     sites_data = parse_report(report_content, problem_days=args.days)
     print(f"  {len(sites_data)} sites found", file=sys.stderr)
 
@@ -586,22 +588,22 @@ def main():
         print(f"[WARN] GGUS fetch failed: {e}. Continuing without tickets.", file=sys.stderr)
         ggus_by_site = {}
 
-    # --- Genera HTML ---
-    print("Generating report ...", file=sys.stderr)
+    # --- Generate HTML ---
+    print("Generating report...", file=sys.stderr)
     out_html = generate_html(sites_data, ggus_by_site, args.days, args.show_all)
 
     out_path = Path(args.out)
     out_path.write_text(out_html, encoding="utf-8")
     print(f"Report saved: {out_path.resolve()}", file=sys.stderr)
 
-    # Stampa sommario a terminale
+    # Print terminal summary
     problem_sites = [
         (s, d) for s, d in sites_data.items()
         if d["max_severity"] >= 3 and not s.startswith("T2_RU_")
     ]
     problem_sites.sort(key=lambda x: (int(re.match(r"T(\d)", x[0]).group(1)), x[0]))
     print(f"\n{'='*60}", file=sys.stderr)
-    print(f"Sites in ERROR: {len(problem_sites)} / {len(sites_data)}", file=sys.stderr)
+    print(f"Sites in ERROR : {len(problem_sites)} / {len(sites_data)}", file=sys.stderr)
     for site, data in problem_sites:
         sev_lbl, _ = severity_label(data["max_severity"])
         n_t = len(ggus_by_site.get(site, []))

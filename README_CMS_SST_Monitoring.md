@@ -1,392 +1,392 @@
 # CMS Site Support Team — Monitoring Infrastructure
 
-> Knowledge base per lo sviluppo di tools legati alla pagina di monitoring
+> Knowledge base for developing tools related to the monitoring page
 > https://cmssst.web.cern.ch/siteStatus/summary.html
 >
-> **Fonti:**
-> - TWiki ufficiale: `CMS/SiteSupportSiteStatusSiteReadiness` (r27, 2024-10-02, S.Lammel)
-> - Repo codice: https://github.com/CMSCompOps/MonitoringScripts
+> **Sources:**
+> - Official TWiki: `CMS/SiteSupportSiteStatusSiteReadiness` (r27, 2024-10-02, S.Lammel)
+> - Code repository: https://github.com/CMSCompOps/MonitoringScripts
 
 ---
 
 ## 1. Overview
 
-Il sistema monitora lo stato operativo di tutti i siti di computing CMS (Tier-0, Tier-1, Tier-2, Tier-3) nel WLCG.
+The system monitors the operational status of all CMS computing sites (Tier-0, Tier-1, Tier-2, Tier-3) in the WLCG.
 
-**Tre input primari:**
-1. **SAM Tests** — disponibilità servizi CE, SRM, WebDAV, XRootD
-2. **HammerCloud Tests** — success rate job HTCondor/CRAB
-3. **FTS Transfer Results** — qualità trasferimenti file (PhEDEx/Rucio sottostante)
+**Three primary inputs:**
+1. **SAM Tests** — availability of CE, SRM, WebDAV, XRootD services
+2. **HammerCloud Tests** — HTCondor/CRAB job success rate
+3. **FTS Transfer Results** — file transfer quality (underlying PhEDEx/Rucio)
 
-Da questi viene calcolato **Site Readiness** → da cui derivano i quattro status operativi.
+From these, **Site Readiness** is computed → from which the four operational statuses are derived.
 
 ---
 
-## 2. I quattro status operativi
+## 2. The four operational statuses
 
-| Status | Scopo | Tier |
-|--------|-------|------|
-| **Life Status** | Il sito è usabile nella grid CMS? | T0, T1, T2 |
-| **Prod Status** | Il sito è abilitato per produzione? | T0, T1, T2 |
-| **Crab Status** | Il sito può eseguire analisi utente? | T0, T1, T2, T3 |
-| **Rucio Status** | Il sito è abilitato per trasferimenti dati? | T0, T1, T2, T3 |
+| Status | Purpose | Tier |
+|--------|---------|------|
+| **Life Status** | Is the site usable in the CMS grid? | T0, T1, T2 |
+| **Prod Status** | Is the site enabled for production? | T0, T1, T2 |
+| **Crab Status** | Can the site run user analysis jobs? | T0, T1, T2, T3 |
+| **Rucio Status** | Is the site enabled for data transfers? | T0, T1, T2, T3 |
 
 ---
 
 ## 3. Life Status
 
-### Stati
-| Codice | Simbolo | Significato |
-|--------|---------|-------------|
-| `ok` | (O) | Sito in servizio |
-| `waiting_room` | (WR) | Sito temporaneamente fuori servizio |
-| `morgue` | (M) | Sito fuori servizio per periodo esteso |
-| `unknown` | — | Stato non determinato |
+### States
+| Code | Symbol | Meaning |
+|------|--------|---------|
+| `ok` | (O) | Site in service |
+| `waiting_room` | (WR) | Site temporarily out of service |
+| `morgue` | (M) | Site out of service for an extended period |
+| `unknown` | — | Status not determined |
 
-### Valutazione
-- **Frequenza:** giornaliera, prima mattina, dopo Site Readiness
+### Evaluation
+- **Frequency:** daily, early morning, after Site Readiness
 - **Scope:** T0, T1, T2
 
-### Macchina a stati
+### State machine
 
 ```
-ok (o unknown)
-  → waiting_room:  5ª SR error state nell'arco di 2 settimane
+ok (or unknown)
+  → waiting_room:  5th SR error state within 2 weeks
 
-waiting_room (o unknown)
-  → ok:            3 SR ok states consecutivi
-  → morgue:        45 giorni in waiting_room
+waiting_room (or unknown)
+  → ok:            3 consecutive SR ok states
+  → morgue:        45 days in waiting_room
 
 morgue
-  → waiting_room:  5ª SR ok state consecutiva
-                   (poi ~1 settimana di raccomandazione con Life Status override manuale su WR)
-                   (dopo, rimosso override → può tornare ok con regola 3-ok-in-a-row)
+  → waiting_room:  5th consecutive SR ok state
+                   (~1 week of recommendation with manual Life Status override on WR)
+                   (after that, override removed → can return to ok with 3-ok-in-a-row rule)
 ```
 
-### Regola weekend (T2 e T3)
-- **Error states nel weekend: NON contati**
-- **Ok states nel weekend: CONTATI**
-- Motivazione: i siti T2/T3 operano 8x5; gli errori del weekend non saranno corretti fino a lunedì, ma gli ok del weekend consentono rapido ripristino.
+### Weekend rule (T2 and T3)
+- **Error states on weekends: NOT counted**
+- **Ok states on weekends: COUNTED**
+- Rationale: T2/T3 sites operate 8x5; weekend errors will not be fixed until Monday, but weekend ok states allow rapid recovery.
 
 ---
 
 ## 4. Prod Status
 
-### Stati
-| Codice | Significato |
-|--------|-------------|
-| `enabled` | Sito abilitato per produzione |
-| `drain` | Nuovi workflow di produzione escludono il sito |
-| `disabled` | Sito disabilitato per job di produzione |
-| `test` | Sito in test per produzione |
-| `unknown` | Stato non determinato |
+### States
+| Code | Meaning |
+|------|---------|
+| `enabled` | Site enabled for production |
+| `drain` | New production workflows exclude the site |
+| `disabled` | Site disabled for production jobs |
+| `test` | Site under testing for production |
+| `unknown` | Status not determined |
 
-### Valutazione
-- **Frequenza:** giornaliera, prima mattina, dopo Life Status
+### Evaluation
+- **Frequency:** daily, early morning, after Life Status
 - **Scope:** T0, T1, T2
-- **Finestra:** Site Readiness degli ultimi **10 giorni**
-- **Override manuale:** production team, site admins, SST
+- **Window:** Site Readiness of the last **10 days**
+- **Manual override:** production team, site admins, SST
 - **Override URL:** https://cmssst.web.cern.ch/cgi-bin/set/ProdStatus
 
-### Macchina a stati
+### State machine
 
 ```
-[Regole automatiche da Life Status]
-Life Status = waiting_room (senza override) → drain
-Life Status = morgue (senza override)       → disabled
+[Automatic rules from Life Status]
+Life Status = waiting_room (no override) → drain
+Life Status = morgue (no override)       → disabled
 
-[Regola downtime]
-Downtime schedulato o non-schedulato > 24h nei prossimi 48h → drain
+[Downtime rule]
+Scheduled or unscheduled downtime > 24h in the next 48h → drain
 
-[Regole SR]
-enabled (o unknown)
-  → drain:     2ª SR error state nell'arco di 3 giorni
+[SR rules]
+enabled (or unknown)
+  → drain:     2nd SR error state within 3 days
 
-drain / disabled (o unknown)
-  → enabled:   2 SR ok states consecutivi
+drain / disabled (or unknown)
+  → enabled:   2 consecutive SR ok states
 ```
 
-### Regola weekend (T2 e T3)
-- Error states weekend: NON contati
-- Ok states weekend: CONTATI
+### Weekend rule (T2 and T3)
+- Weekend error states: NOT counted
+- Weekend ok states: COUNTED
 
 ---
 
 ## 5. Crab Status
 
-### Stati
-| Codice | Significato |
-|--------|-------------|
-| `enabled` | Sito abilitato per job di analisi |
-| `disabled` | Sito disabilitato per job di analisi |
-| `unknown` | Stato non determinato |
+### States
+| Code | Meaning |
+|------|---------|
+| `enabled` | Site enabled for analysis jobs |
+| `disabled` | Site disabled for analysis jobs |
+| `unknown` | Status not determined |
 
-### Valutazione
-- **Frequenza:** giornaliera, prima mattina, dopo Life Status
-- **Scope:** T0, T1, T2, T3 (solo siti con HC attivo)
-- **Finestra:** HammerCloud degli ultimi **7 giorni** (per la valutazione) / **3 giorni** (per le regole)
-- **Override manuale:** CRAB-3 team, site admins, SST
+### Evaluation
+- **Frequency:** daily, early morning, after Life Status
+- **Scope:** T0, T1, T2, T3 (only sites with active HC)
+- **Window:** HammerCloud of the last **7 days** (for evaluation) / **3 days** (for rules)
+- **Manual override:** CRAB-3 team, site admins, SST
 - **Override URL:** https://cmssst.web.cern.ch/cgi-bin/set/CrabStatus
 
-### Macchina a stati
+### State machine
 
 ```
-[Regole automatiche da Life Status]
-Life Status = waiting_room o morgue (senza override) → disabled
+[Automatic rules from Life Status]
+Life Status = waiting_room or morgue (no override) → disabled
 
-[Regole HC]
-→ disabled:  nessun HC ok state negli ultimi 3 giorni
-→ enabled:   1+ HC ok state negli ultimi 3 giorni
+[HC rules]
+→ disabled:  no HC ok state in the last 3 days
+→ enabled:   1+ HC ok state in the last 3 days
 ```
 
-**Nota:** `Usable_Analysis` è una copia/derivazione di Crab Status con codici storici/legacy.
+**Note:** `Usable_Analysis` is a copy/derivative of Crab Status with legacy/historical codes.
 
 ---
 
 ## 6. Rucio Status
 
-### Stati
-| Codice | Significato |
-|--------|-------------|
-| `dependable` | Sito completamente abilitato; storage considerato robusto (per data placement) |
-| `enabled` | Sito completamente abilitato per trasferimenti |
-| `new_data_stop` | Nessun dato nuovo inviato; lettura/trasferimento da sito ancora consentito |
+### States
+| Code | Meaning |
+|------|---------|
+| `dependable` | Site fully enabled; storage considered robust (for data placement) |
+| `enabled` | Site fully enabled for transfers |
+| `new_data_stop` | No new data sent; reading/transfer from site still allowed |
 | `downtime_stop` | Storage in downtime |
-| `parked` | Sito escluso dai trasferimenti |
-| `disabled` | Sito disabilitato, nessun dato unico nel sito |
-| `unknown` | Stato non determinato |
+| `parked` | Site excluded from transfers |
+| `disabled` | Site disabled, no unique data at the site |
+| `unknown` | Status not determined |
 
-### Valutazione
-- **Frequenza:** 4 volte al giorno (~4 ore dopo ogni quarter-day)
-- **Scope:** T0, T1, T2, T3 (solo siti con storage)
-- **Finestra:** SAM storage degli ultimi **120 quarter-day = 30 giorni**
-- **Override manuale:** transfer team, site admins, SST
+### Evaluation
+- **Frequency:** 4 times per day (~4 hours after each quarter-day)
+- **Scope:** T0, T1, T2, T3 (only sites with storage)
+- **Window:** SAM storage of the last **120 quarter-day = 30 days**
+- **Manual override:** transfer team, site admins, SST
 - **Override URL:** https://cmssst.web.cern.ch/cgi-bin/set/RucioStatus
 
-### Macchina a stati
+### State machine
 
 ```
-[Regole automatiche da Life Status]
+[Automatic rules from Life Status]
 Life Status = waiting_room → parked
 Life Status = morgue       → disabled
 
-[Regola downtime]
-Downtime schedulato/non-schedulato > 24h nelle prossime 6h → downtime_stop
+[Downtime rule]
+Scheduled/unscheduled downtime > 24h in the next 6h → downtime_stop
 
-[Degradazione]
+[Degradation]
 dependable/enabled
-  → new_data_stop:  4ª SAM storage error state nell'arco di 3 giorni
+  → new_data_stop:  4th SAM storage error state within 3 days
 
 new_data_stop
-  → parked:         8ª SAM storage error state nell'arco di 3 giorni
+  → parked:         8th SAM storage error state within 3 days
 
-qualsiasi
-  → disabled:       ≥ 84 SAM storage error states in 30 giorni
+any state
+  → disabled:       ≥ 84 SAM storage error states in 30 days
 
-[Ripristino]
-new_data_stop → enabled:   4 SAM storage ok consecutivi
-parked        → enabled:   8 SAM storage ok consecutivi
-disabled      → enabled:   12 SAM storage ok consecutivi
+[Recovery]
+new_data_stop → enabled:   4 consecutive SAM storage ok states
+parked        → enabled:   8 consecutive SAM storage ok states
+disabled      → enabled:   12 consecutive SAM storage ok states
 
-enabled → dependable:      ≥ 108 SAM storage ok in 30gg E error states < 24
-dependable → enabled:      error states in 30gg ≥ 24
+enabled → dependable:      ≥ 108 SAM storage ok in 30d AND error states < 24
+dependable → enabled:      error states in 30d ≥ 24
 ```
 
-### Regola weekend (T2 e T3)
-- Error states weekend: NON contati
-- Ok states weekend: CONTATI (per rienable rapido di storage funzionante)
+### Weekend rule (T2 and T3)
+- Weekend error states: NOT counted
+- Weekend ok states: COUNTED (for rapid re-enable of working storage)
 
 ---
 
 ## 7. Site Readiness
 
-### Periodi valutati
-15 min, 1 ora, 6 ore, 1 giorno
+### Evaluated periods
+15 min, 1 hour, 6 hours, 1 day
 
-### Metrica: status + value
-- **Status:** lo stato più problematico tra SAM, HC, FTS
-  Gerarchia: `error > unknown > warning > ok`
-  Oppure: `downtime` se il sito era ≥ metà del periodo in downtime schedulato
-- **Value:** frazione di 15-min ok/warning states nel periodo
-  (per bin 15min: 0 o 1)
+### Metric: status + value
+- **Status:** the most problematic state among SAM, HC, FTS
+  Hierarchy: `error > unknown > warning > ok`
+  Or: `downtime` if the site was in scheduled downtime for ≥ half the period
+- **Value:** fraction of 15-min ok/warning states in the period
+  (for 15min bin: 0 or 1)
 
-### Definizione downtime schedulato
-Almeno uno di: tutti i CE, tutti i XRootD endpoint, oppure uno storage element (SE) in downtime schedulato ≥ 24 ore prima. Gli stati ok e warning sovrascrivono il downtime (downtime più brevi vengono gestiti automaticamente).
+### Scheduled downtime definition
+At least one of: all CEs, all XRootD endpoints, or one storage element (SE) in scheduled downtime ≥ 24 hours in advance. Ok and warning states override downtime (shorter downtimes are handled automatically).
 
-### Timing di valutazione
-| Granularità | Quando viene fatto | Note |
-|-------------|-------------------|------|
-| 15 min | 30 min dopo la fine del periodo | Aggiornato/verificato fino a 3.5h dopo il bin |
-| 1 ora | 3.5h dopo la fine | Input metriche attese finali |
-| 6 ore | 3.5h dopo la fine | Input metriche attese finali |
-| 1 giorno | 3.5h dopo la fine | Input metriche attese finali |
+### Evaluation timing
+| Granularity | When computed | Notes |
+|-------------|--------------|-------|
+| 15 min | 30 min after end of period | Updated/verified up to 3.5h after the bin |
+| 1 hour | 3.5h after end | Final expected metric inputs |
+| 6 hours | 3.5h after end | Final expected metric inputs |
+| 1 day | 3.5h after end | Final expected metric inputs |
 
-### Input metriche
+### Metric inputs
 1. Downtime
 2. SAM
 3. HammerCloud
 4. FTS
 
-**Esclusioni:** per siti senza CE attivo, HC è escluso. Per siti senza SE attivo, FTS è escluso.
+**Exclusions:** for sites without an active CE, HC is excluded. For sites without an active SE, FTS is excluded.
 
 ---
 
-## 8. SAM — Dettagli tecnici
+## 8. SAM — Technical details
 
-**Profilo usato:** `CMS_CRITICAL_FULL`
+**Profile used:** `CMS_CRITICAL_FULL`
 
-**Test per endpoint:**
-- 5 test per CE (Compute Element)
-- 4 test per XRootD endpoint
-- 3 test per SE/SRM
+**Tests per endpoint:**
+- 5 tests per CE (Compute Element)
+- 4 tests per XRootD endpoint
+- 3 tests per SE/SRM
 
 **Middleware:** gLite
 
-### Logica stato 15-min per servizio
+### 15-min status logic per service
 ```
-Se nessun risultato nel periodo → guarda periodo precedente (e metà del precedente)
-Se qualsiasi test fallisce       → status = error
-Else se risultati mancanti       → status = unknown
-Else se risultati warning        → status = warning
-Else (tutti ok)                  → status = ok
-```
-
-### Aggregazione sito
-```
-Status sito = più problematico tra:
-  - status più problematico di tutti i SE
-  - status MENO problematico tra tutti i CE
-  - status meno problematico tra tutti i XRootD endpoint
-
-Se qualsiasi SE è error         → sito = error
-Se almeno un CE è ok            → sito = ok
+If no result in period → look at previous period (and half of previous)
+If any test fails      → status = error
+Else if results missing → status = unknown
+Else if warning results → status = warning
+Else (all ok)           → status = ok
 ```
 
-### Calcolo availability/reliability
+### Site aggregation
+```
+Site status = most problematic of:
+  - most problematic status of all SEs
+  - LEAST problematic status among all CEs
+  - least problematic status among all XRootD endpoints
+
+If any SE is error         → site = error
+If at least one CE is ok   → site = ok
+```
+
+### Availability/reliability calculation
 ```
 availability = (ok + warning) / (ok + warning + critical + downtime)
 reliability  = (ok + warning) / (ok + warning + critical)
-(unknown escluso da numeratore e denominatore)
+(unknown excluded from numerator and denominator)
 ```
 
-### Soglie status (basate su reliability)
+### Status thresholds (based on reliability)
 | Reliability | T0/T1 | T2/T3 |
 |-------------|-------|-------|
 | > 90% | ok | ok |
 | 80–90% | error | warning |
 | < 80% | error | error |
 
-**Override downtime:** se status = error o unknown E sito in downtime schedulato > metà del periodo → status = `downtime`
+**Downtime override:** if status = error or unknown AND site in scheduled downtime > half of the period → status = `downtime`
 
-### Note importanti
-- **WLCG availability = SAM reliability** (profilo `CMS_CRITICAL`, subset dei test CMS)
-- Il calcolo SAM per Site Readiness è **indipendente da SAM3** e NON coincide
-- Lifetime risultati SAM: ~30 min (vs ~1.5 giorni nel vecchio sistema) → priorità alta ai job `lcgadmin`
+### Important notes
+- **WLCG availability = SAM reliability** (profile `CMS_CRITICAL`, subset of CMS tests)
+- The SAM calculation for Site Readiness is **independent of SAM3** and does NOT match it
+- SAM result lifetime: ~30 min (vs ~1.5 days in the old system) → high priority for `lcgadmin` jobs
 
 ---
 
-## 9. HammerCloud — Dettagli tecnici
+## 9. HammerCloud — Technical details
 
-Jobs di tipo analisi lanciati tramite Glide-In WMS/CRAB.
+Analysis-type jobs launched via Glide-In WMS/CRAB.
 
-**Caratteristiche serie di test:**
-- Durata: ~2 giorni
-- Frequenza: ~1 job ogni 5 minuti per sito
-- Job non completati a fine serie: cancellati
+**Test series characteristics:**
+- Duration: ~2 days
+- Frequency: ~1 job every 5 minutes per site
+- Jobs not completed at end of series: cancelled
 
-### Formula successo
+### Success formula
 ```
 success = (AppSuccess - unsuccessful) / (Terminated - GridCancelled - unknown)
 
-dove:
+where:
   unsuccessful = AppSuccess & (GridAborted | GridCancelled)
   unknown      = AppUnknown & GridUnknown
 ```
 
-### Soglie status
+### Status thresholds
 | Success | T0/T1 | T2/T3 |
 |---------|-------|-------|
 | > 90% | ok | ok |
 | 80–90% | error | warning |
 | < 80% | error | error |
-| Nessun job completato | unknown | unknown |
+| No completed jobs | unknown | unknown |
 
 ---
 
-## 10. FTS — Dettagli tecnici
+## 10. FTS — Technical details
 
-Valuta link, transfer endpoint e trasferimento dati basandosi sui log di CERN FTS (usato sia da PhEDEx che da Rucio).
+Evaluates links, transfer endpoints and data transfers based on CERN FTS logs (used by both PhEDEx and Rucio).
 
-**Periodi:** 15 min, 1 ora, 6 ore, 1 giorno
+**Periods:** 15 min, 1 hour, 6 hours, 1 day
 
-### Regole stato link
+### Link status rules
 ```
-≥ metà trasferimenti riusciti        → link = ok
-> metà trasferimenti falliti         → link = error
-Pochi trasf. con successi e fallimenti → link = warning
-Nessun trasferimento                  → link = unknown
-```
-
-### Aggregazione endpoint (da link)
-```
-> metà link ok      → endpoint = ok
-> metà link error   → endpoint = error
-Indeterminato       → endpoint = warning
-Nessun trasf.       → endpoint = unknown
+≥ half transfers succeeded          → link = ok
+> half transfers failed             → link = error
+Few transfers with successes and failures → link = warning
+No transfers                        → link = unknown
 ```
 
-### Stato sito
-Stato più problematico tra source e destination endpoint del sito (secondo VO-feed).
+### Endpoint aggregation (from links)
+```
+> half links ok      → endpoint = ok
+> half links error   → endpoint = error
+Undetermined         → endpoint = warning
+No transfers         → endpoint = unknown
+```
 
-### Differenza rispetto a PhEDEx (vecchio sistema)
-FTS guarda solo i trasferimenti file; non include health check del servizio PhEDEx. Se PhEDEx è down con zero trasferimenti → FTS metric = `unknown` (invece di error).
+### Site status
+Most problematic state between source and destination endpoint of the site (according to VO-feed).
+
+### Difference from PhEDEx (old system)
+FTS only looks at file transfers; does not include PhEDEx service health check. If PhEDEx is down with zero transfers → FTS metric = `unknown` (instead of error).
 
 ---
 
-## 11. Architettura della summary page
+## 11. Summary page architecture
 
-### Come viene generata
+### How it is generated
 
 ```
 [Cron job] wrapper4cron.sh
     └── data_writer.py (timeout 1500s)
-            ├── Legge metriche da HDFS/cache
-            └── Scrive summary.js → /data/cmssst/…/siteStatus/cache/
+            ├── Reads metrics from HDFS/cache
+            └── Writes summary.js → /data/cmssst/…/siteStatus/cache/
 
-summary.html (statica)
-    ├── carica summary.js         (dati, rigenerato da cron)
-    └── carica summary_lib.js     (rendering HTML5 Canvas)
+summary.html (static)
+    ├── loads summary.js         (data, regenerated by cron)
+    └── loads summary_lib.js     (HTML5 Canvas rendering)
 ```
 
-Il wrapper `wrapper4cron.sh`:
-1. Acquisisce lock in `/var/tmp/cmssst/`
-2. Valida token Kerberos + AFS
-3. Esegue `data_writer.py`
-4. Alert a `lammel@cern.ch` se cache file > 24h
+The wrapper `wrapper4cron.sh`:
+1. Acquires lock in `/var/tmp/cmssst/`
+2. Validates Kerberos + AFS token
+3. Runs `data_writer.py`
+4. Alerts `lammel@cern.ch` if cache file > 24h
 
-### File chiave
+### Key files
 
-| File | Scopo |
-|------|-------|
-| `siteStatus/summary.html` | Pagina HTML statica |
-| `siteStatus/summary_lib.js` | Rendering Canvas + UI |
-| `siteStatus/section_lib.js` | Rendering sezioni sito |
-| `siteStatus/data_writer.py` | Genera summary.js |
-| `siteStatus/wrapper4cron.sh` | Wrapper cron |
+| File | Purpose |
+|------|---------|
+| `siteStatus/summary.html` | Static HTML page |
+| `siteStatus/summary_lib.js` | Canvas rendering + UI |
+| `siteStatus/section_lib.js` | Site section rendering |
+| `siteStatus/data_writer.py` | Generates summary.js |
+| `siteStatus/wrapper4cron.sh` | Cron wrapper |
 
 ---
 
-## 12. Struttura repository
+## 12. Repository structure
 
 ```
 MonitoringScripts/
 ├── siteStatus/          # Dashboard writer + HTML/JS summary
-├── sitereadiness/       # Valutatore SR + report HTML
-├── sam/                 # Valutatore SAM ETF (eval_sam.py)
-├── hammercloud/         # Valutatore HC (eval_hc.py)
-├── fts/                 # Valutatore FTS (eval_fts.py)
-├── downtime/            # Valutatore downtime OSG/EGI
-├── vofeed/              # Topologia VO (vofeed.py → XML + JSON)
+├── sitereadiness/       # SR evaluator + HTML report
+├── sam/                 # SAM ETF evaluator (eval_sam.py)
+├── hammercloud/         # HC evaluator (eval_hc.py)
+├── fts/                 # FTS evaluator (eval_fts.py)
+├── downtime/            # OSG/EGI downtime evaluator
+├── vofeed/              # VO topology (vofeed.py → XML + JSON)
 ├── cmssst/
 │   ├── bin/             # correct.py (fix CLI), ssb_history.py
 │   └── www/
@@ -400,8 +400,8 @@ MonitoringScripts/
 │   ├── prodstatus/      # productionStatus.py
 │   ├── crabstatus/      # crabstatus.py
 │   └── siteReadiness/   # dailyMetric.py
-├── SR_View_SSB/         # Script legacy SSB (cron 15min)
-│   ├── ActiveSites/     # Roster T2 (lunedì 08:00)
+├── SR_View_SSB/         # Legacy SSB scripts (cron 15min)
+│   ├── ActiveSites/     # T2 roster (Monday 08:00)
 │   ├── WRControl/       # WaitingRoom_Sites.py (metric 153)
 │   ├── drain/           # drain.py → drain.txt
 │   └── morgue/          # morgue.py → morgue.txt
@@ -410,72 +410,72 @@ MonitoringScripts/
 
 ---
 
-## 13. Visualizzazione — Encoding dati in summary.js
+## 13. Visualization — Data encoding in summary.js
 
-### Viste temporali per sito (HTML5 Canvas)
+### Time views per site (HTML5 Canvas)
 
-| Vista | Granularità | Slot |
-|-------|-------------|------|
-| pmonth | 6h (ultimi 30gg) | 120 |
-| pweek | 1h (ultimi 7gg) | 168 |
+| View | Granularity | Slots |
+|------|-------------|-------|
+| pmonth | 6h (last 30d) | 120 |
+| pweek | 1h (last 7d) | 168 |
 | yesterday | 15min | 96 |
 | today | 15min | 96 |
-| fweek | 1h (prossimi 7gg) | 168 |
+| fweek | 1h (next 7d) | 168 |
 
-### Codifica caratteri negli string di dati
+### Character encoding in data strings
 
-| Char | Stato | Colore |
-|------|-------|--------|
-| `o` | ok | #80FF80 verde |
-| `w` | warning | giallo |
-| `e` | error | rosso |
-| `d` | full downtime | #6080FF blu |
-| `p` | partial downtime | blu chiaro |
-| `a` | adhoc outage | arancione |
+| Char | State | Color |
+|------|-------|-------|
+| `o` | ok | #80FF80 green |
+| `w` | warning | yellow |
+| `e` | error | red |
+| `d` | full downtime | #6080FF blue |
+| `p` | partial downtime | light blue |
+| `a` | adhoc outage | orange |
 | `r` | at-risk | — |
-| `W` | waiting room | #A000A0 viola |
-| `B` | morgue | #663300 marrone |
+| `W` | waiting room | #A000A0 purple |
+| `B` | morgue | #663300 brown |
 
-I codici composti R/S/T/U/V/W/H/I/J/K/L/M codificano combinazioni di stati.
+Compound codes R/S/T/U/V/W/H/I/J/K/L/M encode combinations of states.
 
-### Ticket GGUS (highlighting)
-| Condizione | Colore |
-|------------|--------|
-| Ticket < 1h | arancione scuro |
-| Ticket < 1gg | arancione chiaro |
-| Ticket più vecchio > 45gg | marrone |
+### GGUS tickets (highlighting)
+| Condition | Color |
+|-----------|-------|
+| Ticket < 1h | dark orange |
+| Ticket < 1d | light orange |
+| Ticket older > 45d | brown |
 
-### Layout responsive
-| Larghezza | Bin Canvas |
-|-----------|-----------|
-| < 1440px | ridotta |
+### Responsive layout
+| Width | Canvas bins |
+|-------|-------------|
+| < 1440px | reduced |
 | 1440–2048px | standard |
-| ≥ 4K | larga |
+| ≥ 4K | wide |
 
 ---
 
 ## 14. Manual Override System
 
 ### Web tool — `man_override.py`
-- URL set LifeStatus: https://cmssst.web.cern.ch/cgi-bin/set/LifeStatus *(inferito)*
+- URL set LifeStatus: https://cmssst.web.cern.ch/cgi-bin/set/LifeStatus *(inferred)*
 - URL set ProdStatus: https://cmssst.web.cern.ch/cgi-bin/set/ProdStatus
 - URL set CrabStatus: https://cmssst.web.cern.ch/cgi-bin/set/CrabStatus
 - URL set RucioStatus: https://cmssst.web.cern.ch/cgi-bin/set/RucioStatus
-- Autenticazione: CERN SSO + e-group membership
-- Permette impostare: LifeStatus, ProdStatus, CrabStatus, RucioStatus, capacità sito
-- Tutte le modifiche sono append-logged per audit
-- File locking per write concorrenti
+- Authentication: CERN SSO + e-group membership
+- Allows setting: LifeStatus, ProdStatus, CrabStatus, RucioStatus, site capacity
+- All changes are append-logged for audit
+- File locking for concurrent writes
 
 ### CLI tool — `correct.py`
-Fetch da HDFS → modifica in `vi` → re-upload.
-Metriche supportate: `vofeed15min`, `down15min`, `sam`, `hc`, `fts`, `sr`, `sts`, `scap`
+Fetch from HDFS → edit in `vi` → re-upload.
+Supported metrics: `vofeed15min`, `down15min`, `sam`, `hc`, `fts`, `sr`, `sts`, `scap`
 
 ---
 
-## 15. Riepilogo soglie e parametri chiave
+## 15. Key thresholds and parameters
 
-| Parametro | Valore |
-|-----------|--------|
+| Parameter | Value |
+|-----------|-------|
 | **SAM ok** (T0/T1/T2) | reliability > 90% |
 | **SAM warning** (T2) | reliability 80–90% |
 | **SAM error** (T1) | reliability < 90% |
@@ -484,237 +484,237 @@ Metriche supportate: `vofeed15min`, `down15min`, `sam`, `hc`, `fts`, `sr`, `sts`
 | **HC warning** (T2) | success 80–90% |
 | **HC error** (T1) | success < 90% |
 | **HC error** (T2) | success < 80% |
-| **FTS ok** | ≥ metà trasferimenti riusciti |
-| **FTS error** | > metà trasferimenti falliti |
-| **Downtime override** | ≥ 50% del periodo in downtime schedulato |
-| **SR finestra Life** | 2 settimane |
-| **Life ok→WR** | 5ª SR error in 2 settimane |
-| **Life WR→ok** | 3 SR ok consecutivi |
-| **Life WR→morgue** | 45 giorni in WR |
-| **Life morgue→WR** | 5ª SR ok consecutiva |
-| **Prod finestra** | 10 giorni SR |
-| **Prod enabled→drain** | 2ª SR error in 3 giorni |
-| **Prod drain→enabled** | 2 SR ok consecutivi |
-| **Prod downtime drain** | downtime > 24h nei prossimi 48h |
-| **Crab finestra** | 3 giorni HC |
-| **Crab→disabled** | nessun HC ok in 3 giorni |
-| **Crab→enabled** | 1+ HC ok in 3 giorni |
-| **Rucio →new_data_stop** | 4ª SAM storage error in 3 giorni |
-| **Rucio →parked** | 8ª SAM storage error in 3 giorni |
-| **Rucio →disabled** | ≥ 84 SAM error in 30 giorni |
-| **Rucio →enabled** (da new_data_stop) | 4 SAM ok consecutivi |
-| **Rucio →enabled** (da parked) | 8 SAM ok consecutivi |
-| **Rucio →enabled** (da disabled) | 12 SAM ok consecutivi |
-| **Rucio →dependable** | ≥ 108 SAM ok in 30gg E error < 24 |
-| **Rucio dependable→enabled** | error in 30gg ≥ 24 |
-| **Rucio downtime_stop** | storage downtime > 24h nelle prossime 6h |
-| **Cache expiry alert** | 24 ore |
-| **data_writer.py timeout** | 1500 secondi |
+| **FTS ok** | ≥ half transfers succeeded |
+| **FTS error** | > half transfers failed |
+| **Downtime override** | ≥ 50% of period in scheduled downtime |
+| **SR Life window** | 2 weeks |
+| **Life ok→WR** | 5th SR error in 2 weeks |
+| **Life WR→ok** | 3 consecutive SR ok states |
+| **Life WR→morgue** | 45 days in WR |
+| **Life morgue→WR** | 5th consecutive SR ok state |
+| **Prod window** | 10 days SR |
+| **Prod enabled→drain** | 2nd SR error in 3 days |
+| **Prod drain→enabled** | 2 consecutive SR ok states |
+| **Prod downtime drain** | downtime > 24h in next 48h |
+| **Crab window** | 3 days HC |
+| **Crab→disabled** | no HC ok in 3 days |
+| **Crab→enabled** | 1+ HC ok in 3 days |
+| **Rucio →new_data_stop** | 4th SAM storage error in 3 days |
+| **Rucio →parked** | 8th SAM storage error in 3 days |
+| **Rucio →disabled** | ≥ 84 SAM errors in 30 days |
+| **Rucio →enabled** (from new_data_stop) | 4 consecutive SAM ok states |
+| **Rucio →enabled** (from parked) | 8 consecutive SAM ok states |
+| **Rucio →enabled** (from disabled) | 12 consecutive SAM ok states |
+| **Rucio →dependable** | ≥ 108 SAM ok in 30d AND errors < 24 |
+| **Rucio dependable→enabled** | errors in 30d ≥ 24 |
+| **Rucio downtime_stop** | storage downtime > 24h in next 6h |
+| **Cache expiry alert** | 24 hours |
+| **data_writer.py timeout** | 1500 seconds |
 | **SAM result lifetime** | ~30 min |
 
 ---
 
-## 16. Differenze SSB → CERN MonIT (migrazione)
+## 16. SSB → CERN MonIT migration differences
 
-1. **FTS sostituisce PhEDEx:** FTS guarda solo trasferimenti; se PhEDEx è down senza trasferimenti → FTS = `unknown`
-2. **SAM usa reliability, non availability:** per evitare problemi con downtime non allineati a giorni UTC; stati error durante downtime schedulati sono esclusi
-3. **Site Readiness ha un valore frazionario:** esempio: tutti i test ok ma i trasferimenti solo nei primi 15 min del giorno → SAM=HC=FTS=100% ma SR value = 1/96 ≈ 1%; SR **status** rimane `ok`
-4. **Aggregazione SAM diversa da SAM3:**
-   - Es. 1: CE error la mattina, SE error il pomeriggio → SAM3=50%, nuovo SAM=0%
-   - Es. 2: Uno di due CE error la mattina, l'altro il pomeriggio → SAM3=50%, nuovo SAM=100%
-
----
-
-## 17. Note per sviluppo futuro di tools
-
-1. **Topologia autoritativa:** `vofeed.py` → usare come fonte per qualsiasi tool (CRIC + Rucio + HTCondor collectors)
-2. **Kerberos richiesto:** accesso HDFS richiede ticket Kerberos valido
-3. **Override API:** gli endpoint `/cgi-bin/set/` richiedono CERN SSO; per automazione valutare uso diretto HDFS con locking
-4. **correct.py:** strumento CLI per patch puntuali su HDFS senza UI web
-5. **Formato summary.js:** encoding a carattere singolo per bin (o/w/e/d/p/a/r/W/B + composti) — studiare prima di costruire parser/writer
-6. **Weekend rule:** qualsiasi tool che conta bad/good days per T2/T3 deve ignorare error nel weekend
-7. **Rucio finestra:** 30 giorni / 120 quarter-day — finestra molto più lunga degli altri status
-8. **SAM result lifetime:** solo ~30 min — i job SAM (`lcgadmin`) devono avere alta priorità
-9. **SR value vs status:** il valore SR può essere molto basso anche con status ok — tenere conto di entrambi
+1. **FTS replaces PhEDEx:** FTS only looks at transfers; if PhEDEx is down with no transfers → FTS = `unknown`
+2. **SAM uses reliability, not availability:** to avoid issues with downtimes not aligned to UTC days; error states during scheduled downtimes are excluded
+3. **Site Readiness has a fractional value:** example: all tests ok but transfers only in the first 15 min of the day → SAM=HC=FTS=100% but SR value = 1/96 ≈ 1%; SR **status** remains `ok`
+4. **SAM aggregation differs from SAM3:**
+   - Ex. 1: CE error in the morning, SE error in the afternoon → SAM3=50%, new SAM=0%
+   - Ex. 2: One of two CEs error in the morning, the other in the afternoon → SAM3=50%, new SAM=100%
 
 ---
 
-## 18. Pagina GGUS Tickets — `ggus.html`
+## 17. Notes for future tool development
+
+1. **Authoritative topology:** `vofeed.py` → use as source for any tool (CRIC + Rucio + HTCondor collectors)
+2. **Kerberos required:** HDFS access requires a valid Kerberos ticket
+3. **Override API:** the `/cgi-bin/set/` endpoints require CERN SSO; for automation consider direct HDFS use with locking
+4. **correct.py:** CLI tool for point fixes on HDFS without the web UI
+5. **summary.js format:** single-character encoding per bin (o/w/e/d/p/a/r/W/B + compounds) — study before building parser/writer
+6. **Weekend rule:** any tool counting bad/good days for T2/T3 must ignore errors on weekends
+7. **Rucio window:** 30 days / 120 quarter-day — much longer window than other statuses
+8. **SAM result lifetime:** only ~30 min — SAM jobs (`lcgadmin`) must have high priority
+9. **SR value vs status:** the SR value can be very low even with status ok — account for both
+
+---
+
+## 18. GGUS Tickets page — `ggus.html`
 
 **URL:** https://cmssst.web.cern.ch/siteStatus/ggus.html
 
-Mostra l'elenco dei ticket GGUS aperti per ogni sito CMS, raggruppati per età.
+Shows the list of open GGUS tickets for each CMS site, grouped by age.
 
-### Architettura (stessa di summary.html)
+### Architecture (same as summary.html)
 
 ```
 Cron (wrapper4cron.sh)
   └─> data_writer.py
-        ├─ sswp_ggus()          → fetch ticket da GGUS REST API
-        └─ sswp_write_ggus_js() → scrive siteStatus/data/ggus.js
+        ├─ sswp_ggus()          → fetch tickets from GGUS REST API
+        └─ sswp_write_ggus_js() → writes siteStatus/data/ggus.js
 
-Browser carica ggus.html
+Browser loads ggus.html
   ├─ data/ggus.js      (siteStatusInfo + siteGGUSData)
   ├─ ggus_lib.js       (writeTable, fillLegend, updateTimestamps)
-  └─ fillPage() → writeTable() → tabella ticket per sito/età
+  └─ fillPage() → writeTable() → ticket table per site/age
 ```
 
-### Step 1 — Fetch ticket: `sswp_ggus()` in `data_writer.py`
+### Step 1 — Fetch tickets: `sswp_ggus()` in `data_writer.py`
 
-**API GGUS usata (Zammad REST, attuale):**
+**GGUS API used (Zammad REST, current):**
 ```
 GET https://helpdesk.ggus.eu/api/v1/groups
-    → costruisce groupDict: {group_id → cms_site_name}
+    → builds groupDict: {group_id → cms_site_name}
 
 GET https://helpdesk.ggus.eu/api/v1/tickets/search
     Query: !((state:solved OR unsolved OR closed OR verified) AND id:>lastTicket)
     Params: sort_by=id, order_by=asc, limit=32
-    Auth: Bearer token (in repo redatto)
+    Auth: Bearer token (redacted in repo)
 ```
 
-Paginazione: fino a 64 batch × 32 ticket. Raccoglie solo ticket **open/in-progress**.
+Pagination: up to 64 batches × 32 tickets. Collects only **open/in-progress** tickets.
 
-**Cache:** `cache/cache_ggus_grp.json` e `cache/cache_ggus.json` — usati come fallback se il fetch live fallisce.
+**Cache:** `cache/cache_ggus_grp.json` and `cache/cache_ggus.json` — used as fallback if live fetch fails.
 
-**Risoluzione sito CMS per ticket** (ordine di priorità):
-1. `ticket['cms_site_names']` — campo esplicito Zammad
+**CMS site resolution per ticket** (priority order):
+1. `ticket['cms_site_names']` — explicit Zammad field
 2. `ticket['notified_groups']` → `groupDict[group_id]`
-3. `ticket['wlcg_sites']` → `gridDict[wlcg_site]` (da VOFeed XML)
+3. `ticket['wlcg_sites']` → `gridDict[wlcg_site]` (from VOFeed XML)
 
-Ticket il cui sito non corrisponde a `T\d_[A-Z]{2}_\w+` vengono scartati.
+Tickets whose site does not match `T\d_[A-Z]{2}_\w+` are discarded.
 
-### Step 2 — Formato `ggus.js`
+### Step 2 — `ggus.js` format
 
 ```javascript
 var siteStatusInfo = {
-    time: 1774011242,   // Unix timestamp di generazione
+    time: 1774011242,   // Unix generation timestamp
     alert: "",
-    reload: 900         // auto-reload in secondi
+    reload: 900         // auto-reload in seconds
 };
 
 var siteGGUSData = [
     { site: "T0_CH_CERN",  ggus: [] },
     { site: "T1_IT_CNAF",  ggus: [[1000981, 1761577511]] },
     { site: "T1_RU_JINR",  ggus: [[1001605, 1768995854], [1001742, 1770239237]] },
-    // ... ~116 siti
+    // ... ~116 sites
 ];
 ```
 
-Ogni elemento `ggus`: `[ticket_id, unix_creation_timestamp]`, ordinato per creation time crescente.
+Each `ggus` element: `[ticket_id, unix_creation_timestamp]`, sorted by creation time ascending.
 
-### Step 3 — Rendering browser: `ggus_lib.js`
+### Step 3 — Browser rendering: `ggus_lib.js`
 
-`writeTable()` raggruppa i ticket per età rispetto alla mezzanotte UTC del giorno corrente:
+`writeTable()` groups tickets by age relative to UTC midnight of the current day:
 
-| Bucket | Condizione |
+| Bucket | Condition |
 |--------|-----------|
-| Oggi | timestamp ≥ mezzanotte UTC oggi |
-| Ieri | timestamp ≥ mezzanotte UTC ieri |
-| Settimana precedente | timestamp ≥ oggi − 7gg |
-| > 8 giorni | timestamp < oggi − 8gg |
+| Today | timestamp ≥ UTC midnight today |
+| Yesterday | timestamp ≥ UTC midnight yesterday |
+| Previous week | timestamp ≥ today − 7d |
+| > 8 days | timestamp < today − 8d |
 
-Ogni ticket è un link: `https://helpdesk.ggus.eu/#ticket/zoom/TICKET_ID`
+Each ticket is a link: `https://helpdesk.ggus.eu/#ticket/zoom/TICKET_ID`
 
-### File coinvolti nel repo
+### Files in the repository
 
-| File | Ruolo |
-|------|-------|
-| `siteStatus/data_writer.py` | Master writer (5747 righe): `sswp_ggus()` + `sswp_write_ggus_js()` |
-| `siteStatus/ggus.html` | Shell HTML statica |
-| `siteStatus/ggus_lib.js` | Renderer JS (writeTable, fillLegend, updateTimestamps) |
-| `siteStatus/wrapper4cron.sh` | Cron wrapper condiviso con summary.html |
-| `GGUS_SOAP/ggus.py` | Legacy: SOAP client creazione ticket (suds library) |
-| `GGUS_SOAP/metric.py` | Legacy: crea ticket per siti entrati in waiting_room |
-| `metrics/ggus/ggus.py` | Legacy: parser XML → TWiki/SSB metric |
-| `metrics/ggus/run.sh` | Legacy: wget con grid certificate → XML |
-| `meeting_plots/meet_ggus.py` | Genera tabelle TWiki per meeting CMS Ops (su EOS) |
-| `meeting_plots/ggus_wrapper4cron.sh` | Cron per meet_ggus.py |
+| File | Role |
+|------|------|
+| `siteStatus/data_writer.py` | Master writer (5747 lines): `sswp_ggus()` + `sswp_write_ggus_js()` |
+| `siteStatus/ggus.html` | Static HTML shell |
+| `siteStatus/ggus_lib.js` | JS renderer (writeTable, fillLegend, updateTimestamps) |
+| `siteStatus/wrapper4cron.sh` | Cron wrapper shared with summary.html |
+| `GGUS_SOAP/ggus.py` | Legacy: SOAP client for ticket creation (suds library) |
+| `GGUS_SOAP/metric.py` | Legacy: creates tickets for sites entering waiting_room |
+| `metrics/ggus/ggus.py` | Legacy: XML parser → TWiki/SSB metric |
+| `metrics/ggus/run.sh` | Legacy: wget with grid certificate → XML |
+| `meeting_plots/meet_ggus.py` | Generates TWiki tables for CMS Ops meetings (on EOS) |
+| `meeting_plots/ggus_wrapper4cron.sh` | Cron for meet_ggus.py |
 
-### Note per sviluppo tools
+### Notes for tool development
 
-- Il dato live è `data/ggus.js` — facile da parsare (plain JS assignable come JSON)
-- Per creare ticket automaticamente: `GGUS_SOAP/ggus.py` è il modello (oggi usa REST non SOAP)
-- `meet_ggus.py` è utile come esempio per generare report tabellari per meeting
-- Il Bearer token per la REST API è in `data_writer.py` (redatto nel repo pubblico) — necessario per accesso diretto
+- Live data is in `data/ggus.js` — easy to parse (plain JS assignable as JSON)
+- To create tickets automatically: `GGUS_SOAP/ggus.py` is the reference (now uses REST not SOAP)
+- `meet_ggus.py` is useful as an example for generating tabular reports for meetings
+- The Bearer token for the REST API is in `data_writer.py` (redacted in the public repo) — required for direct access
 
 ---
 
 ## 19. CMS SAM Tests — `gitlab.cern.ch/etf/cmssam`
 
 > Repository: https://gitlab.cern.ch/etf/cmssam
-> 1755 commit. Genera il container ETF/Check_MK che esegue tutti i probe SAM per CMS.
+> 1755 commits. Generates the ETF/Check_MK container that runs all SAM probes for CMS.
 
-### Cos'è
+### What it is
 
-Un'appliance containerizzata (ETF = European Testing Framework, basato su Check_MK/Nagios) che:
-1. Al boot fetcha proxy X.509 e token OIDC da `myproxy.cern.ch`
-2. Genera la configurazione Nagios per ~200 siti CMS leggendo il VO feed
-3. Sottopone continuamente job di test a tutti i siti CMS via HTCondor-CE e ARC-CE
-4. Raccoglie i risultati e li pubblica sul broker STOMP WLCG (`oldsam.msg.cern.ch`, topic `/topic/sam.cms.metric`)
+A containerized appliance (ETF = European Testing Framework, based on Check_MK/Nagios) that:
+1. At boot fetches X.509 proxy and OIDC token from `myproxy.cern.ch`
+2. Generates the Nagios configuration for ~200 CMS sites by reading the VO feed
+3. Continuously submits test jobs to all CMS sites via HTCondor-CE and ARC-CE
+4. Collects results and publishes them to the WLCG STOMP broker (`oldsam.msg.cern.ch`, topic `/topic/sam.cms.metric`)
 
-### Struttura del repository
+### Repository structure
 
 ```
 cmssam/
-├── Dockerfile                     # Build del container ETF (base: etf-base:el9)
-├── .gitlab-ci.yml                 # CI: build→tag:qa, deploy manuale→tag:prod
+├── Dockerfile                     # ETF container build (base: etf-base:el9)
+├── .gitlab-ci.yml                 # CI: build→tag:qa, manual deploy→tag:prod
 ├── SiteTests/
-│   ├── SE/                        # Probe Storage Element (Python 3)
-│   ├── WN/                        # Probe Worker Node (Python 3 + shell)
-│   ├── FroNtier/tests/            # Probe Frontier/Squid CE (shell)
-│   ├── MonteCarlo/                # Probe MC stage-out (Python 2 + shell)
-│   └── testjob/tests/             # Job CE payload + librerie (shell + Python)
+│   ├── SE/                        # Storage Element probes (Python 3)
+│   ├── WN/                        # Worker Node probes (Python 3 + shell)
+│   ├── FroNtier/tests/            # Frontier/Squid CE probe (shell)
+│   ├── MonteCarlo/                # MC stage-out probe (Python 2 + shell)
+│   └── testjob/tests/             # CE job payload + libraries (shell + Python)
 ├── nagios/
-│   ├── config/                    # Config Nagios/ETF + etf_plugin_cms.py
-│   └── org.cms.glexec/            # Probe legacy glexec (Perl + shell)
+│   ├── config/                    # Nagios/ETF config + etf_plugin_cms.py
+│   └── org.cms.glexec/            # Legacy glexec probe (Perl + shell)
 └── podman/
-    ├── config/                    # Config ETF runtime (ncgx, grid-env, OIDC)
-    ├── add-keys.sh                # Init token OIDC
-    └── entrypoint.sh              # Startup completo container
+    ├── config/                    # ETF runtime config (ncgx, grid-env, OIDC)
+    ├── add-keys.sh                # OIDC token init
+    └── entrypoint.sh              # Full container startup
 ```
 
 ---
 
-### Probe Storage Element (SE)
+### Storage Element (SE) probes
 
-| Probe | Cosa testa |
-|-------|-----------|
-| `se_xrootd.py` | 7 fasi: TCP connect, versione, stat/read/offset-read, foreign-file containment, open-access, write+checksum+delete, mkdir/ls/rmdir. Valida anche IAM token auth. |
-| `cmssam_xrootd_endpnt.py` | Endpoint XRootD leggero: connect, versione, read+checksum Adler32 su blocchi fissi. Ha `--generate` per refresh dati da redirector globale CMS. |
-| `se_webdav.py` | ~18 passi: connettività, SSL/TLS ciphers, chain certificati, X.509 CMS+non-CMS, OAuth2/IAM, macaroons, read/write/copy/delete, CRC32+Adler32. |
-| `se_gsiftp.py` | TCP+SSL, GFAL2 read+checksum, write, verifica attributi VOMS. IPv4/IPv6. |
-| `se_links.py` | Third-party pull-copy: token IAM, copia test da T1/T2 EU/US/AS e T3 con verifica Adler32. |
-| `srmvometrics.py` | Legacy SRM: put/get/ls/delete via gfal2, discovery endpoint BDII/LDAP. |
+| Probe | What it tests |
+|-------|--------------|
+| `se_xrootd.py` | 7 phases: TCP connect, version, stat/read/offset-read, foreign-file containment, open-access, write+checksum+delete, mkdir/ls/rmdir. Also validates IAM token auth. |
+| `cmssam_xrootd_endpnt.py` | Lightweight XRootD endpoint: connect, version, read+Adler32 checksum on fixed blocks. Has `--generate` for data refresh from CMS global redirector. |
+| `se_webdav.py` | ~18 steps: connectivity, SSL/TLS ciphers, certificate chain, X.509 CMS+non-CMS, OAuth2/IAM, macaroons, read/write/copy/delete, CRC32+Adler32. |
+| `se_gsiftp.py` | TCP+SSL, GFAL2 read+checksum, write, VOMS attribute verification. IPv4/IPv6. |
+| `se_links.py` | Third-party pull-copy: IAM token, copy test from T1/T2 EU/US/AS and T3 with Adler32 verification. |
+| `srmvometrics.py` | Legacy SRM: put/get/ls/delete via gfal2, endpoint discovery via BDII/LDAP. |
 
-### Probe Worker Node (WN)
+### Worker Node (WN) probes
 
-| Probe | Cosa testa |
-|-------|-----------|
-| `wn_basic.sh` | CPU, RAM (warn <2 GB/core), disk, load, NTP, IPv4/IPv6, Python3, OS (flag CentOS7), X.509 o IAM token presente. |
-| `wn_cvmfs.sh` | Mount `cms.cern.ch`+`oasis.opensciencegrid.org`, versione CVMFS, Stratum-1, proxy config, cache quota, I/O error counts. |
-| `wn_apptainer.sh` | Trova binario Apptainer (env→CVMFS→which→modules), valida bind paths, esegue payload dentro container. |
-| `wn_siteconf.py` | Valida `site-local-config.xml`, `storage.xml`, `storage.json` e li confronta con GitLab master (error se diverge da >120h). |
-| `wn_dataaccess.py` | Crea CMSSW area, esegue `cmsRun` su file ROOT GenericTTbar reali. Supporta PhEDEx XML e storage.json. |
-| `wn_frontier.sh` | Lancia `cmsRun` per query `EcalPedestals` via `frontier://FrontierProd`. Direct-server = error; proxy-failover = warning. |
-| `wn_runsum.py` | Meta-orchestratore: esegue più sub-probe WN dentro container Apptainer (x86_64, ppc64le, aarch64), aggrega output JSON. |
+| Probe | What it tests |
+|-------|--------------|
+| `wn_basic.sh` | CPU, RAM (warn <2 GB/core), disk, load, NTP, IPv4/IPv6, Python3, OS (CentOS7 flag), X.509 or IAM token present. |
+| `wn_cvmfs.sh` | Mount `cms.cern.ch`+`oasis.opensciencegrid.org`, CVMFS version, Stratum-1, proxy config, cache quota, I/O error counts. |
+| `wn_apptainer.sh` | Finds Apptainer binary (env→CVMFS→which→modules), validates bind paths, runs payload inside container. |
+| `wn_siteconf.py` | Validates `site-local-config.xml`, `storage.xml`, `storage.json` and compares with GitLab master (error if diverged > 120h). |
+| `wn_dataaccess.py` | Creates CMSSW area, runs `cmsRun` on real ROOT GenericTTbar files. Supports PhEDEx XML and storage.json. |
+| `wn_frontier.sh` | Launches `cmsRun` for `EcalPedestals` query via `frontier://FrontierProd`. Direct-server = error; proxy-failover = warning. |
+| `wn_runsum.py` | Meta-orchestrator: runs multiple WN sub-probes inside Apptainer container (x86_64, ppc64le, aarch64), aggregates JSON output. |
 
-### Probe CE (job submission)
+### CE probes (job submission)
 
-| Probe | Cosa testa |
-|-------|-----------|
+| Probe | What it tests |
+|-------|--------------|
 | `CE-cms-basic` | SITECONF (TFC, stage-out, frontier-connect, storage.json) vs GitLab master |
-| `CE-cms-env` | Environment pilota: certificati, sw area, disco (min 10 GB), middleware, proxy (warn <6h) |
-| `CE-cms-frontier` | Connessione Frontier/Squid via `cmsRun EcalPedestals` |
-| `CE-cms-squid` | Connettività Squid |
-| `CE-cms-xrootd-access` | Read XRootD locale (T1=critical, T2=warning su errore) |
-| `CE-cms-xrootd-fallback` | Read XRootD ruotando su 10 siti fallback globali |
-| `CE-cms-analysis` | Job analisi CMSSW su dati reali + verifica FJR |
-| `CE-cms-mc` | Stage-out MC: TFC LFN→PFN + trasferimento + cleanup |
-| `CE-cms-remotestageout` | Stage-out remoto verso CERN EOS, INFN Storm, UNL GridFTP |
-| `CE-cms-singularity` | Singularity: immagine CVMFS presente, esegue `echo "Hello World"` |
-| `CE-cms-isolation` | Proxy per test combined glexec+Singularity |
+| `CE-cms-env` | Pilot environment: certificates, sw area, disk (min 10 GB), middleware, proxy (warn <6h) |
+| `CE-cms-frontier` | Frontier/Squid connection via `cmsRun EcalPedestals` |
+| `CE-cms-squid` | Squid connectivity |
+| `CE-cms-xrootd-access` | Local XRootD read (T1=critical, T2=warning on error) |
+| `CE-cms-xrootd-fallback` | XRootD read rotating across 10 global fallback sites |
+| `CE-cms-analysis` | CMSSW analysis job on real data + FJR verification |
+| `CE-cms-mc` | MC stage-out: TFC LFN→PFN + transfer + cleanup |
+| `CE-cms-remotestageout` | Remote stage-out to CERN EOS, INFN Storm, UNL GridFTP |
+| `CE-cms-singularity` | Singularity: CVMFS image present, runs `echo "Hello World"` |
+| `CE-cms-isolation` | Proxy for combined glexec+Singularity test |
 
-Ogni probe usa la convenzione SAME_* → exit code Nagios:
+Each probe uses the SAME_* convention → Nagios exit code:
 
 | SAME code | Exit | Nagios |
 |-----------|------|--------|
@@ -723,24 +723,24 @@ Ogni probe usa la convenzione SAME_* → exit code Nagios:
 | `SAME_ERROR = 50` | 2 | CRITICAL |
 | timeout (exit 124) | 2 | CRITICAL |
 
-Il wrapper `nagtest-run` traduce exit code non-standard in output Nagios corretto.
+The wrapper `nagtest-run` translates non-standard exit codes into correct Nagios output.
 
 ---
 
-### Flusso metrica SAM end-to-end
+### SAM metric end-to-end flow
 
 ```
 etf_plugin_cms.py
-  └── legge VO feed da cmssst.web.cern.ch
-  └── genera config Nagios per ~200 siti
-        (placeholder: <siteName>, <ceName>, <VOMS>, ...)
+  └── reads VO feed from cmssst.web.cern.ch
+  └── generates Nagios config for ~200 sites
+        (placeholders: <siteName>, <ceName>, <VOMS>, ...)
 
 wlcg_cms.cfg
-  └── definisce metriche (timeout=600s, retry=4, interval=30-60min)
+  └── defines metrics (timeout=600s, retry=4, interval=30-60min)
   └── chain: proxy → job submit → job state → job monitor
 
 Nagios/Check_MK (samtest-run)
-  └── sottopone job via HTCondor-CE / ARC-CE
+  └── submits jobs via HTCondor-CE / ARC-CE
   └── payload = probe in /usr/libexec/grid-monitoring/probes/org.cms/
 
 nstream (ocsp_handler.cfg)
@@ -751,10 +751,10 @@ nstream (ocsp_handler.cfg)
 
 ---
 
-### Tassonomia metriche (da `wlcg_cms.cfg`)
+### Metric taxonomy (from `wlcg_cms.cfg`)
 
-| Categoria | Metriche |
-|-----------|---------|
+| Category | Metrics |
+|----------|---------|
 | Proxy | `org.cms.Proxy-lcgadmin`, `…-production`, `…-pilot` |
 | OIDC | `org.cms.Token-CE`, `org.cms.Token-SR` |
 | WN/CE jobs | `org.cms.WN-basic`, `…-cvmfs`, `…-frontier`, `…-squid`, `…-xrootd`, `…-xrootd-fallback`, `…-singularity`, `…-isolation`, `…-mc`, `…-analysis`, `…-remotestageout` |
@@ -771,109 +771,109 @@ nstream (ocsp_handler.cfg)
 - **Config paths**: `/etc/ncgx/`, `/etc/nstream/`, `/etc/cron.d/`
 - **Exposed ports**: 443 (Check_MK web UI), 6557 (Livestatus)
 - **Entrypoint**: `/usr/sbin/init` (systemd)
-- **CI**: `master` → tag `qa`; deploy manuale → tag `prod` (via Crane)
+- **CI**: `master` → tag `qa`; manual deploy → tag `prod` (via Crane)
 
 ---
 
-### Note per sviluppo tools
+### Notes for tool development
 
-1. **`etf_plugin_cms.py`** è il generatore di config Nagios — da studiare per capire come il VO feed si mappa su siti/servizi/metriche
-2. **`wlcg_cms.cfg`** contiene tutti i parametri operativi (timeout, retry, interval) — fonte autorevole per timeout/retry da replicare in tool custom
-3. **Exit code SAME_***: qualsiasi tool/probe custom deve usare questa convenzione per integrarsi con il sistema
-4. **Singularity wrappers (`.sing`)**: pattern riutilizzabile per run di probe in container isolati
-5. **`fetch-from-web-gitlab`**: contiene un GitLab PAT hardcoded (redacted) — non usarlo come modello, è una credenziale esposta nel repo pubblico cmssam
-6. **`ncgx.cfg`**: mostra come le metriche vengono pubblicate su STOMP — utile per capire come intercettare/ripubblicare metriche custom
+1. **`etf_plugin_cms.py`** is the Nagios config generator — study it to understand how the VO feed maps to sites/services/metrics
+2. **`wlcg_cms.cfg`** contains all operational parameters (timeout, retry, interval) — authoritative source for timeout/retry values to replicate in custom tools
+3. **SAME_* exit codes**: any custom tool/probe must use this convention to integrate with the system
+4. **Singularity wrappers (`.sing`)**: reusable pattern for running probes in isolated containers
+5. **`fetch-from-web-gitlab`**: contains a hardcoded GitLab PAT (redacted) — do not use as a model, it is an exposed credential in the public cmssam repo
+6. **`ncgx.cfg`**: shows how metrics are published to STOMP — useful for understanding how to intercept/republish custom metrics
 
 ---
 
 ## 20. Daily Problem Report Tool — `cms_site_report.py`
 
-> File: `cms_site_report.py` (nella directory Facilities)
-> Genera un report HTML giornaliero dei siti CMS con problemi.
+> File: `cms_site_report.py` (in the Facilities directory)
+> Generates a daily HTML report of CMS sites with problems.
 
-### Funzionalità
+### Features
 
-- Scarica e parsa `cmssst.web.cern.ch/sitereadiness/report.html` → SAM/HC/FTS per sito
-- Scarica ticket GGUS aperti via REST API (`helpdesk.ggus.eu/api/v1`) con descrizione (primo articolo)
-- Mostra solo siti con **errore** (severity >= 3), esclusi `T2_RU_*` (in dismissione)
-- Ordine: Tier-2 → Tier-3 (nessun T1 in errore tipicamente), dentro ogni tier: alfabetico
-- Ticket ordinati: **CMS VO** prima, poi **WLCG/generale** — dentro ogni gruppo: data decrescente
-- Ticket >90 giorni raggruppati in sezione `<details>` espandibile con stesso ordinamento
+- Downloads and parses `cmssst.web.cern.ch/sitereadiness/report.html` → SAM/HC/FTS per site
+- Downloads open GGUS tickets via REST API (`helpdesk.ggus.eu/api/v1`) with description (first article)
+- Shows only sites with **error** (severity >= 3), excluding `T2_RU_*` (being decommissioned)
+- Order: Tier-1 → Tier-2 → Tier-3, within each tier: alphabetical
+- Tickets sorted: **CMS VO** first, then **WLCG/general** — within each group: date descending
+- Tickets > 90 days grouped in a collapsible `<details>` section with the same ordering
 
-### Classificazione ticket CMS vs WLCG
+### Ticket classification: CMS vs WLCG
 
-| Campo GGUS | Condizione | Classificazione |
-|-----------|-----------|----------------|
-| `vo_support` | `== "cms"` | CMS (badge blu) |
-| `area` | inizia con `"CMS"` | CMS (badge blu) |
-| tutto il resto | — | WLCG (badge verde) |
+| GGUS field | Condition | Classification |
+|-----------|-----------|---------------|
+| `vo_support` | `== "cms"` | CMS (blue badge) |
+| `area` | starts with `"CMS"` | CMS (blue badge) |
+| everything else | — | WLCG (green badge) |
 
-### Fonti dati
+### Data sources
 
-| Fonte | Accesso | Contenuto |
-|-------|---------|-----------|
-| `cmssst.web.cern.ch/sitereadiness/report.html` | Pubblico | SAM%/HC%/FTS% per sito, 16 giorni rolling, tooltip con dettagli |
-| `helpdesk.ggus.eu/api/v1/tickets/search` | Bearer token | Ticket aperti con cms_site_names, titolo, stato, priorità |
-| `helpdesk.ggus.eu/api/v1/ticket_articles/{id}` | Bearer token | Corpo del primo articolo (descrizione del problema) |
+| Source | Access | Content |
+|--------|--------|---------|
+| `cmssst.web.cern.ch/sitereadiness/report.html` | Public | SAM%/HC%/FTS% per site, 16-day rolling, tooltip with details |
+| `helpdesk.ggus.eu/api/v1/tickets/search` | Bearer token | Open tickets with cms_site_names, title, state, priority |
+| `helpdesk.ggus.eu/api/v1/ticket_articles/{id}` | Bearer token | Body of first article (problem description) |
 
-### Token GGUS
+### GGUS Token
 
 - File: `documentation/token_ggus`
 - Header: `Authorization: Token <token>`
-- Il token è un API token personale Zammad creato su `helpdesk.ggus.eu` → Settings → Token Access
-- Nel sistema originale (`data_writer.py`) è hardcoded nel sorgente sull'istanza ETF
+- The token is a personal Zammad API token created on `helpdesk.ggus.eu` → Settings → Token Access
+- In the original system (`data_writer.py`) it is hardcoded in the source on the ETF instance
 
-### Uso
+### Usage
 
 ```bash
-# Report standard (soli siti in errore, ultimi 3 giorni)
+# Standard report (error sites only, last 3 days)
 python3 cms_site_report.py
 
-# Finestra più ampia
+# Wider window
 python3 cms_site_report.py --days 7
 
-# Tutti i siti (anche ok e warning)
+# All sites (including ok and warning)
 python3 cms_site_report.py --all
 
-# Output su file specifico
+# Output to specific file
 python3 cms_site_report.py --out /path/to/report.html
 ```
 
-### Colori celle metriche
+### Metric cell colors
 
-| Colore | Hex | Significato |
-|--------|-----|-------------|
-| Verde | `#80FF80` | ok |
-| Giallo | `#FFFF00` | warning |
-| Rosso | `#FF0000` | error |
-| Blu | `#6080FF` | downtime schedulato |
-| Arancione | `#FF8000` | adhoc/unscheduled |
+| Color | Hex | Meaning |
+|-------|-----|---------|
+| Green | `#80FF80` | ok |
+| Yellow | `#FFFF00` | warning |
+| Red | `#FF0000` | error |
+| Blue | `#6080FF` | scheduled downtime |
+| Orange | `#FF8000` | adhoc/unscheduled |
 
-### Esclusioni configurate
+### Configured exclusions
 
-- `T2_RU_*` — in fase di dismissione (hardcoded nel filtro `show_all`)
+- `T2_RU_*` — being decommissioned (hardcoded in `show_all` filter)
 
 ---
 
-## 21. Pubblicazione su GitHub Pages
+## 21. Publishing on GitHub Pages
 
-### Struttura del repo
+### Repository structure
 
 ```
 .
-├── cms_site_report.py          # script principale
+├── cms_site_report.py          # main script
 ├── docs/
-│   └── index.html              # report generato — servito da GitHub Pages
+│   └── index.html              # generated report — served by GitHub Pages
 ├── .github/
 │   └── workflows/
-│       └── daily_report.yml    # GitHub Actions: aggiornamento giornaliero
-├── run_report.command           # doppio-click da Finder → genera + apre in locale
-└── .gitignore                  # esclude il token e l'output locale
+│       └── daily_report.yml    # GitHub Actions: daily update
+├── run_report.command           # double-click from Finder → generate + open locally
+└── .gitignore                  # excludes token and local output
 ```
 
-### Setup iniziale (una sola volta)
+### Initial setup (one time only)
 
-#### 1. Crea il repo su GitHub
+#### 1. Create the repo on GitHub
 
 ```bash
 cd /path/to/project
@@ -881,20 +881,20 @@ git init
 git add cms_site_report.py docs/.gitkeep .github/ run_report.command .gitignore README_CMS_SST_Monitoring.md
 git commit -m "initial commit"
 gh repo create cms-sst-report --public --source=. --push
-# oppure push su repo CERN esistente
+# or push to existing CERN repo
 ```
 
-#### 2. Aggiungi il token come GitHub Secret
+#### 2. Add token as GitHub Secret
 
 ```
 GitHub → repo → Settings → Secrets and variables → Actions → New repository secret
-  Nome:  GGUS_TOKEN
-  Valore: (contenuto di documentation/token_ggus)
+  Name:  GGUS_TOKEN
+  Value: (contents of documentation/token_ggus)
 ```
 
-> **Attenzione:** il file `documentation/token_ggus` è in `.gitignore` — non viene mai committato.
+> **Warning:** the file `documentation/token_ggus` is in `.gitignore` — it is never committed.
 
-#### 3. Abilita GitHub Pages
+#### 3. Enable GitHub Pages
 
 ```
 GitHub → repo → Settings → Pages
@@ -902,54 +902,55 @@ GitHub → repo → Settings → Pages
   Branch: main  /docs
 ```
 
-La pagina sarà disponibile a:
+The page will be available at:
 `https://<username>.github.io/<repo>/`
 
-#### 4. Primo run manuale
+#### 4. First manual run
 
 ```
 GitHub → repo → Actions → Daily CMS SST Report → Run workflow
 ```
 
-### Come funziona la GitHub Action
+### How the GitHub Action works
 
-Il file `.github/workflows/daily_report.yml`:
+The file `.github/workflows/daily_report.yml`:
 
-1. Si esegue ogni giorno alle **07:00 UTC** (dopo i job notturni CERN)
-2. Legge il token dal secret `GGUS_TOKEN` (env var `GGUS_TOKEN`)
-3. Esegue `python3 cms_site_report.py --days 3 --out docs/index.html`
-4. Committa `docs/index.html` solo se il contenuto è cambiato
-5. GitHub Pages pubblica automaticamente il file aggiornato
+1. Runs every day at **07:00 UTC** (after CERN overnight jobs complete)
+2. Reads the token from the `GGUS_TOKEN` secret (env var `GGUS_TOKEN`)
+3. Runs `python3 cms_site_report.py --days 3 --out docs/index.html`
+4. Commits `docs/index.html` only if the content has changed
+5. GitHub Pages automatically publishes the updated file
 
-### Trigger manuale
+### Manual trigger
 
-Dal menu **Actions** su GitHub → seleziona il workflow → **Run workflow**.
+From the **Actions** menu on GitHub → select the workflow → **Run workflow**.
 
-### Aggiornamento locale (run_report.command)
+### Local update (run_report.command)
 
-Doppio click da Finder:
-- genera `cms_report.html` nella directory del progetto (non `docs/`)
-- apre il file nel browser
-- legge il token da `documentation/token_ggus`
+Double-click from Finder:
+- generates `cms_report.html` in the project directory (not `docs/`)
+- opens the file in the browser
+- reads the token from `documentation/token_ggus`
 
 ---
 
-## 22. Riferimenti
+## 22. References
 
-| Risorsa | URL |
-|---------|-----|
+| Resource | URL |
+|----------|-----|
 | Summary page | https://cmssst.web.cern.ch/siteStatus/summary.html |
 | GGUS Tickets page | https://cmssst.web.cern.ch/siteStatus/ggus.html |
 | GGUS helpdesk | https://helpdesk.ggus.eu/ |
 | Site Readiness report | https://cmssst.web.cern.ch/sitereadiness/report.html |
-| Repo MonitoringScripts | https://github.com/CMSCompOps/MonitoringScripts |
-| Repo cmssam (SAM probes) | https://gitlab.cern.ch/etf/cmssam |
-| TWiki SST (auth) | https://twiki.cern.ch/twiki/bin/view/CMS/SiteSupportSiteStatusSiteReadiness |
-| TWiki Facilities (pubblica) | https://twiki.cern.ch/twiki/bin/view/CMSPublic/FacilitiesServicesDocumentation |
+| MonitoringScripts repo | https://github.com/CMSCompOps/MonitoringScripts |
+| cmssam repo (SAM probes) | https://gitlab.cern.ch/etf/cmssam |
+| TWiki SST (auth required) | https://twiki.cern.ch/twiki/bin/view/CMS/SiteSupportSiteStatusSiteReadiness |
+| TWiki Facilities (public) | https://twiki.cern.ch/twiki/bin/view/CMSPublic/FacilitiesServicesDocumentation |
 | TWiki SAM Tests | https://twiki.cern.ch/twiki/bin/view/CMSPublic/CompOpsSAMTests |
 | TWiki WR/Morgue (legacy) | https://twiki.cern.ch/twiki/bin/view/CMSPublic/WaitingRoomMorgueAndSiteReadiness |
 | Site Comm Rules | https://twiki.cern.ch/twiki/bin/viewauth/CMSPublic/SiteCommRules |
 | SSB→MonIT migration talk | https://indico.cern.ch/event/870451/contributions/3671157/ |
-| CRIC (topologia siti) | https://cms-cric.cern.ch/ |
+| CRIC (site topology) | https://cms-cric.cern.ch/ |
 | SAM ETF | https://wlcg-sam-cms.cern.ch/ |
 | MonIT | https://monit.cern.ch/ |
+| Published report | https://gbagliesi.github.io/cms-sst-report/ |
