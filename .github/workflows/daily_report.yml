@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write      # needed to push docs/index.html
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
