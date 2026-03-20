@@ -1,0 +1,41 @@
+name: Daily CMS SST Report
+
+on:
+  schedule:
+    # Every day at 07:00 UTC (after CERN overnight jobs complete)
+    - cron: "0 7 * * *"
+  workflow_dispatch:   # allow manual trigger from GitHub UI
+
+permissions:
+  contents: write      # needed to push docs/index.html
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate report
+        env:
+          GGUS_TOKEN: ${{ secrets.GGUS_TOKEN }}
+        run: |
+          python3 cms_site_report.py \
+            --days 3 \
+            --out docs/index.html
+
+      - name: Commit and push report
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html
+          # Only commit if something changed
+          git diff --cached --quiet || \
+            git commit -m "chore: update daily CMS SST report $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push

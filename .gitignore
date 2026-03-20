@@ -1,0 +1,13 @@
+# Local documentation dumps (HTML, source references, tokens)
+documentation/
+
+# Local output (published version lives in docs/)
+cms_report.html
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
