@@ -34,6 +34,7 @@ from pathlib import Path
 REPORT_URL   = "https://cmssst.web.cern.ch/sitereadiness/report.html"
 GGUS_API     = "https://helpdesk.ggus.eu/api/v1"
 GGUS_TICKET_URL = "https://helpdesk.ggus.eu/#ticket/zoom/{id}"
+MAX_DAYS = 7   # maximum days parsed and embedded in the report
 
 COLOR_OK       = "#80FF80"
 COLOR_WARNING  = "#FFFF00"
@@ -90,7 +91,7 @@ def days_ago(ts_str):
 # ---------------------------------------------------------------------------
 # Parse report.html
 # ---------------------------------------------------------------------------
-def parse_report(content, problem_days=3):
+def parse_report(content, problem_days=MAX_DAYS):
     """
     Returns dict: {site_name: {
         'dates':    [str, ...],        # last problem_days dates (most recent = last)
@@ -167,8 +168,8 @@ def parse_report(content, problem_days=3):
             row_html = block[idx:row_end] if row_end > 0 else block[idx:idx+4000]
 
             cells = cell_pattern.findall(row_html)
-            # Keep only the last problem_days cells (most recent)
-            cells = cells[-problem_days:]
+            # Keep only the last MAX_DAYS cells (most recent)
+            cells = cells[-MAX_DAYS:]
             for color, log_url, pct, tooltip in cells:
                 status = cell_status(color)
                 site_data[js_key].append({
@@ -278,22 +279,33 @@ def severity_label(sev):
 
 
 def metric_html(cells, metric_name):
+    # didx: 1 = most recent, MAX_DAYS = oldest
+    # cells list is ordered oldest→newest, so cells[-1] = most recent = didx 1
+    n = len(cells)
     if not cells:
-        return f"<td class='metric-name'>{metric_name}</td><td class='no-data' colspan='3'>— no data —</td>"
+        # emit MAX_DAYS hidden placeholder cells so column count stays consistent
+        out = f"<td class='metric-name'>{metric_name}</td>"
+        out += f"<td class='no-data dcol' data-didx='1' colspan='{MAX_DAYS}'>— no data —</td>"
+        return out
 
     out = f"<td class='metric-name'>{metric_name}</td>"
-    for cell in cells:
+    # pad oldest slots with empty cells up to MAX_DAYS total
+    for pad_idx in range(MAX_DAYS - n, 0, -1):
+        didx = MAX_DAYS - (MAX_DAYS - n - pad_idx) - pad_idx + 1
+        # simpler: padded cells at the left get the highest didx values
+        real_didx = pad_idx + n   # e.g. if n=3 and MAX_DAYS=7, pads get didx 7,6,5,4
+        out += f"<td class='metric-cell empty dcol' data-didx='{real_didx}'>&mdash;</td>"
+    for i, cell in enumerate(cells):
+        # cells[0]=oldest, cells[-1]=most recent
+        didx = n - i          # cells[0] → didx=n, cells[-1] → didx=1
         bg = cell["color"] or "#F4F4F4"
         pct = cell["pct"] or "?"
         tooltip = cell["tooltip"].replace('"', "&quot;")
         log = cell.get("log_url", "#")
         out += (
-            f'<td class="metric-cell" style="background:{bg}" title="{tooltip}">'
+            f'<td class="metric-cell dcol" data-didx="{didx}" style="background:{bg}" title="{tooltip}">'
             f'<a href="{log}" target="_blank">{pct}</a></td>'
         )
-    # pad to 3 columns if fewer cells
-    for _ in range(3 - len(cells)):
-        out += "<td class='metric-cell empty'>&mdash;</td>"
     return out
 
 
@@ -405,14 +417,52 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
     background: #0a1628; border-left: 3px solid #a8d8ea;
     color: #a8d8ea; font-size: 13px; font-weight: bold; border-radius: 0 4px 4px 0;
   }}
+  .days-ctrl {{
+    display: flex; align-items: center; gap: 10px;
+    margin-left: auto;
+  }}
+  .days-ctrl label {{ color: #aaa; font-size: 12px; }}
+  .days-ctrl select {{
+    background: #0f3460; color: #e0e0e0; border: 1px solid #a8d8ea;
+    border-radius: 4px; padding: 3px 8px; font-size: 12px; cursor: pointer;
+  }}
+  .days-ctrl select:focus {{ outline: none; }}
 </style>
+<script>
+function setDays(n) {{
+  document.querySelectorAll('.dcol').forEach(function(el) {{
+    var d = parseInt(el.getAttribute('data-didx'));
+    el.style.display = d <= n ? '' : 'none';
+  }});
+  document.querySelectorAll('.dth').forEach(function(th) {{
+    var d = parseInt(th.getAttribute('data-didx'));
+    th.style.display = d <= n ? '' : 'none';
+    if (d <= n) th.textContent = '-' + d + 'd';
+  }});
+  var lbl = document.getElementById('days-label');
+  if (lbl) lbl.textContent = n + ' day' + (n > 1 ? 's' : '');
+}}
+window.addEventListener('DOMContentLoaded', function() {{
+  var sel = document.getElementById('days-sel');
+  setDays(parseInt(sel.value));
+  sel.addEventListener('change', function() {{ setDays(parseInt(this.value)); }});
+}});
+</script>
 </head>
 <body>
 
 <h1>&#9888; CMS SST — Sites with Problems</h1>
-<div class="subtitle">Generated: {now_str} &nbsp;|&nbsp; Metric window: last {problem_days} days &nbsp;|&nbsp;
-  Source: <a href="{REPORT_URL}" target="_blank" style="color:#a8d8ea">sitereadiness/report.html</a> +
-  <a href="https://helpdesk.ggus.eu" target="_blank" style="color:#a8d8ea">GGUS</a>
+<div class="subtitle" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
+  <span>Generated: {now_str} &nbsp;|&nbsp;
+    Source: <a href="{REPORT_URL}" target="_blank" style="color:#a8d8ea">sitereadiness/report.html</a> +
+    <a href="https://helpdesk.ggus.eu" target="_blank" style="color:#a8d8ea">GGUS</a>
+  </span>
+  <div class="days-ctrl">
+    <label>Window:</label>
+    <select id="days-sel">
+      {''.join(f'<option value="{d}"{" selected" if d == problem_days else ""}>{d} day{"s" if d > 1 else ""}</option>' for d in range(1, MAX_DAYS + 1))}
+    </select>
+  </div>
 </div>
 
 <div class="summary">
@@ -421,13 +471,15 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
 </div>
 
 <p style="color:#888;font-size:11px;margin-bottom:16px">
-  Metric columns = last {problem_days} days (oldest to most recent, left to right).<br>
+  Metric columns = last <span id="days-label">{problem_days} days</span> (oldest to most recent, left to right).<br>
   Click a cell to open the detailed SAM/HC/FTS log. Click a site name for the full readiness report.
 </p>
 """
 
+    # Headers: didx 1=most recent … MAX_DAYS=oldest; rendered text updated by JS
     col_headers = "".join(
-        f"<th>-{problem_days - i}d</th>" for i in range(problem_days)
+        f'<th class="dth" data-didx="{didx}">-{didx}d</th>'
+        for didx in range(MAX_DAYS, 0, -1)
     )
 
     current_tier = None
@@ -547,7 +599,7 @@ def main():
     parser.add_argument("--token", default="documentation/token_ggus",
                         help="File containing the GGUS Bearer token")
     parser.add_argument("--days", type=int, default=3,
-                        help="Look-back window in days (default: 3)")
+                        help=f"Default day window shown in the UI (default: 3, max: {MAX_DAYS})")
     parser.add_argument("--out", default="cms_report.html",
                         help="HTML output file (default: cms_report.html)")
     parser.add_argument("--all", action="store_true", dest="show_all",
@@ -575,7 +627,7 @@ def main():
         sys.exit(1)
 
     print("Parsing metrics...", file=sys.stderr)
-    sites_data = parse_report(report_content, problem_days=args.days)
+    sites_data = parse_report(report_content)
     print(f"  {len(sites_data)} sites found", file=sys.stderr)
 
     # --- Fetch GGUS tickets ---
