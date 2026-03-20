@@ -1,6 +1,9 @@
 # Local documentation dumps (HTML, source references, tokens)
 documentation/
 
+# Detailed internal README (local reference only)
+README_CMS_SST_Monitoring.md
+
 # Local output (published version lives in docs/)
 cms_report.html
 
