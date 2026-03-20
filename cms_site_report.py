@@ -302,8 +302,9 @@ def metric_html(cells, metric_name):
         pct = cell["pct"] or "?"
         tooltip = cell["tooltip"].replace('"', "&quot;")
         log = cell.get("log_url", "#")
+        status = cell.get("status", "unknown")
         out += (
-            f'<td class="metric-cell dcol" data-didx="{didx}" style="background:{bg}" title="{tooltip}">'
+            f'<td class="metric-cell dcol" data-didx="{didx}" data-status="{status}" style="background:{bg}" title="{tooltip}">'
             f'<a href="{log}" target="_blank">{pct}</a></td>'
         )
     return out
@@ -427,12 +428,21 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
     border-radius: 4px; padding: 3px 8px; font-size: 12px; cursor: pointer;
   }}
   .days-ctrl select:focus {{ outline: none; }}
+  .filter-ctrl {{
+    display: flex; align-items: center; gap: 6px; margin-left: 16px;
+    font-size: 12px; color: #aaa; cursor: pointer; user-select: none;
+  }}
+  .filter-ctrl input {{ accent-color: #a8d8ea; cursor: pointer; }}
+  .site-block.hidden-by-filter {{ display: none; }}
 </style>
 <script>
-function setDays(n) {{
+function applyFilters() {{
+  var n   = parseInt(document.getElementById('days-sel').value);
+  var chk = document.getElementById('filter-window').checked;
+
+  // show/hide metric columns and headers
   document.querySelectorAll('.dcol').forEach(function(el) {{
-    var d = parseInt(el.getAttribute('data-didx'));
-    el.style.display = d <= n ? '' : 'none';
+    el.style.display = parseInt(el.getAttribute('data-didx')) <= n ? '' : 'none';
   }});
   document.querySelectorAll('.dth').forEach(function(th) {{
     var d = parseInt(th.getAttribute('data-didx'));
@@ -441,11 +451,40 @@ function setDays(n) {{
   }});
   var lbl = document.getElementById('days-label');
   if (lbl) lbl.textContent = n + ' day' + (n > 1 ? 's' : '');
+
+  // show/hide site blocks based on window filter
+  document.querySelectorAll('.site-block').forEach(function(block) {{
+    if (!chk) {{
+      block.classList.remove('hidden-by-filter');
+      return;
+    }}
+    var hasError = false;
+    block.querySelectorAll('.dcol[data-status]').forEach(function(cell) {{
+      if (parseInt(cell.getAttribute('data-didx')) <= n &&
+          cell.getAttribute('data-status') === 'error') {{
+        hasError = true;
+      }}
+    }});
+    block.classList.toggle('hidden-by-filter', !hasError);
+  }});
+
+  // hide tier separators that have no visible site below them
+  document.querySelectorAll('.tier-separator').forEach(function(sep) {{
+    var next = sep.nextElementSibling;
+    var anyVisible = false;
+    while (next && !next.classList.contains('tier-separator')) {{
+      if (next.classList.contains('site-block') && !next.classList.contains('hidden-by-filter')) {{
+        anyVisible = true; break;
+      }}
+      next = next.nextElementSibling;
+    }}
+    sep.style.display = anyVisible ? '' : 'none';
+  }});
 }}
 window.addEventListener('DOMContentLoaded', function() {{
-  var sel = document.getElementById('days-sel');
-  setDays(parseInt(sel.value));
-  sel.addEventListener('change', function() {{ setDays(parseInt(this.value)); }});
+  document.getElementById('days-sel').addEventListener('change', applyFilters);
+  document.getElementById('filter-window').addEventListener('change', applyFilters);
+  applyFilters();
 }});
 </script>
 </head>
@@ -463,6 +502,10 @@ window.addEventListener('DOMContentLoaded', function() {{
       {''.join(f'<option value="{d}"{" selected" if d == problem_days else ""}>{d} day{"s" if d > 1 else ""}</option>' for d in range(1, MAX_DAYS + 1))}
     </select>
   </div>
+  <label class="filter-ctrl">
+    <input type="checkbox" id="filter-window" checked>
+    Show only sites with errors in selected window
+  </label>
 </div>
 
 <div class="summary">
