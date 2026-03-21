@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CMS SST Daily Report — 2026-03-21 07:31 UTC</title>
+<title>CMS SST Daily Report — 2026-03-21 07:32 UTC</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: monospace; font-size: 13px; background: #1a1a2e; color: #e0e0e0; margin: 0; padding: 16px; }
@@ -91,11 +91,28 @@
   }
   .filter-ctrl input { accent-color: #a8d8ea; cursor: pointer; }
   .site-block.hidden-by-filter { display: none; }
+  .site-block.hidden-by-tier   { display: none; }
+  .tier-ctrl {
+    display: flex; align-items: center; gap: 10px; margin-left: 16px;
+    font-size: 12px; color: #aaa;
+  }
+  .tier-ctrl span { color: #888; }
+  .tier-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    cursor: pointer; user-select: none;
+  }
+  .tier-btn input { accent-color: #a8d8ea; cursor: pointer; }
 </style>
 <script>
 function applyFilters() {
   var n   = parseInt(document.getElementById('days-sel').value);
   var chk = document.getElementById('filter-window').checked;
+
+  // which tiers are selected
+  var activeTiers = {};
+  document.querySelectorAll('.tier-chk').forEach(function(cb) {
+    activeTiers[cb.value] = cb.checked;
+  });
 
   // show/hide metric columns and headers
   document.querySelectorAll('.dcol').forEach(function(el) {
@@ -109,8 +126,13 @@ function applyFilters() {
   var lbl = document.getElementById('days-label');
   if (lbl) lbl.textContent = n + ' day' + (n > 1 ? 's' : '');
 
-  // show/hide site blocks based on window filter
+  // show/hide site blocks based on window filter + tier filter
   document.querySelectorAll('.site-block').forEach(function(block) {
+    // tier filter
+    var tier = block.getAttribute('data-tier');
+    block.classList.toggle('hidden-by-tier', !activeTiers[tier]);
+
+    // window/error filter
     if (!chk) {
       block.classList.remove('hidden-by-filter');
       return;
@@ -125,22 +147,36 @@ function applyFilters() {
     block.classList.toggle('hidden-by-filter', !hasError);
   });
 
-  // hide tier separators that have no visible site below them
+  // hide tier separators with no visible sites below
   document.querySelectorAll('.tier-separator').forEach(function(sep) {
     var next = sep.nextElementSibling;
     var anyVisible = false;
     while (next && !next.classList.contains('tier-separator')) {
-      if (next.classList.contains('site-block') && !next.classList.contains('hidden-by-filter')) {
+      if (next.classList.contains('site-block') &&
+          !next.classList.contains('hidden-by-filter') &&
+          !next.classList.contains('hidden-by-tier')) {
         anyVisible = true; break;
       }
       next = next.nextElementSibling;
     }
     sep.style.display = anyVisible ? '' : 'none';
   });
+
+  // update counters
+  var visible = document.querySelectorAll(
+    '.site-block:not(.hidden-by-filter):not(.hidden-by-tier)').length;
+  var total   = document.querySelectorAll('.site-block').length;
+  var cntErr  = document.getElementById('cnt-err');
+  var cntTot  = document.getElementById('cnt-total');
+  if (cntErr) cntErr.textContent = visible;
+  if (cntTot) cntTot.textContent = total;
 }
 window.addEventListener('DOMContentLoaded', function() {
   document.getElementById('days-sel').addEventListener('change', applyFilters);
   document.getElementById('filter-window').addEventListener('change', applyFilters);
+  document.querySelectorAll('.tier-chk').forEach(function(cb) {
+    cb.addEventListener('change', applyFilters);
+  });
   applyFilters();
 });
 </script>
@@ -149,7 +185,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
 <h1>&#9888; CMS SST — Sites with Problems</h1>
 <div class="subtitle" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
-  <span>Generated: 2026-03-21 07:31 UTC &nbsp;|&nbsp;
+  <span>Generated: 2026-03-21 07:32 UTC &nbsp;|&nbsp;
     Source: <a href="https://cmssst.web.cern.ch/sitereadiness/report.html" target="_blank" style="color:#a8d8ea">sitereadiness/report.html</a> +
     <a href="https://helpdesk.ggus.eu" target="_blank" style="color:#a8d8ea">GGUS</a>
   </span>
@@ -163,11 +199,17 @@ window.addEventListener('DOMContentLoaded', function() {
     <input type="checkbox" id="filter-window" checked>
     Show only sites with errors in selected window
   </label>
+  <div class="tier-ctrl">
+    <span>Tier:</span>
+    <label class="tier-btn"><input class="tier-chk" type="checkbox" value="1" checked> T1</label>
+    <label class="tier-btn"><input class="tier-chk" type="checkbox" value="2" checked> T2</label>
+    <label class="tier-btn"><input class="tier-chk" type="checkbox" value="3" checked> T3</label>
+  </div>
 </div>
 
 <div class="summary">
-  <span>Sites with errors: <span class="badge-err">40</span></span>
-  <span>Total sites: 93</span>
+  <span>Sites shown: <span class="badge-err" id="cnt-err">40</span></span>
+  <span>Total in report: <span id="cnt-total">40</span></span>
 </div>
 
 <p style="color:#888;font-size:11px;margin-bottom:16px">
@@ -176,7 +218,7 @@ window.addEventListener('DOMContentLoaded', function() {
 </p>
 <div class="tier-separator">Tier-2</div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_AT_Vienna" target="_blank">T2_AT_Vienna</a>
@@ -384,7 +426,7 @@ Essentially it was created an intermediate step where the plain SSL authenticati
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_BR_UERJ" target="_blank">T2_BR_UERJ</a>
@@ -439,7 +481,7 @@ Attached are two images sent by them with the test results. Could you take a loo
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_CH_CSCS" target="_blank">T2_CH_CSCS</a>
@@ -527,7 +569,7 @@ Internal Diary:
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_CN_Beijing" target="_blank">T2_CN_Beijing</a>
@@ -870,7 +912,7 @@ EL9 stable repository: htt</div>
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_IN_TIFR" target="_blank">T2_IN_TIFR</a>
@@ -969,7 +1011,7 @@ Added attachment dcache.zip
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_IT_Pisa" target="_blank">T2_IT_Pisa</a>
@@ -1260,7 +1302,7 @@ Escalated this ticket to NGI_IT</div>
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_LB_HPC4L" target="_blank">T2_LB_HPC4L</a>
@@ -1368,7 +1410,7 @@ Best Regards,Jakrapop
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_PK_NCP" target="_blank">T2_PK_NCP</a>
@@ -1532,7 +1574,7 @@ Sent 1st reminder to ticket submitter (julia.andreeva@cern.ch) requesting input.
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_PL_Cyfronet" target="_blank">T2_PL_Cyfronet</a>
@@ -1813,7 +1855,7 @@ Added Parent-Child relation with parent ticket https://ggus.eu/index.php?mode=ti
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_TW_NCHC" target="_blank">T2_TW_NCHC</a>
@@ -2006,7 +2048,7 @@ You are getting this ticket, because CPU consumption for June in the EGI portal 
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_UA_KIPT" target="_blank">T2_UA_KIPT</a>
@@ -2058,7 +2100,7 @@ Cheers,Alexey</div>
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_UK_London_IC" target="_blank">T2_UK_London_IC</a>
@@ -2076,7 +2118,7 @@ Cheers,Alexey</div>
     </table>
 <div class="tickets-section"><p class="no-tickets">No open GGUS tickets</p></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_UK_SGrid_Bristol" target="_blank">T2_UK_SGrid_Bristol</a>
@@ -2223,7 +2265,7 @@ Involved CMS Glidein Factory in this ticket.</div>
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="2">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T2_US_Vanderbilt" target="_blank">T2_US_Vanderbilt</a>
@@ -2286,7 +2328,7 @@ and should be updated.Best Regards,Barry
     </details></div></div></div>
 <div class="tier-separator">Tier-3</div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_BG_UNI_SOFIA" target="_blank">T3_BG_UNI_SOFIA</a>
@@ -2376,7 +2418,7 @@ Essentially it was created an intermediate step where the plain SSL authenticati
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_CH_CERNBOX" target="_blank">T3_CH_CERNBOX</a>
@@ -2394,7 +2436,7 @@ Essentially it was created an intermediate step where the plain SSL authenticati
     </table>
 <div class="tickets-section"><p class="no-tickets">No open GGUS tickets</p></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_CH_CERN_OpenData" target="_blank">T3_CH_CERN_OpenData</a>
@@ -2412,7 +2454,7 @@ Essentially it was created an intermediate step where the plain SSL authenticati
     </table>
 <div class="tickets-section"><p class="no-tickets">No open GGUS tickets</p></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_HR_IRB" target="_blank">T3_HR_IRB</a>
@@ -2485,7 +2527,7 @@ Escalated this ticket to NGI_GRNET</div>
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_IN_TIFRCloud" target="_blank">T3_IN_TIFRCloud</a>
@@ -2537,7 +2579,7 @@ Added attachment dcache.zip
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_IR_IPM" target="_blank">T3_IR_IPM</a>
@@ -2643,7 +2685,7 @@ Its outputs are thoroughly general messages like this, just showcasing Authentic
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_IT_Trieste" target="_blank">T3_IT_Trieste</a>
@@ -2759,7 +2801,7 @@ Escalated this ticket to NGI_IT</div>
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_KR_KNU" target="_blank">T3_KR_KNU</a>
@@ -2812,7 +2854,7 @@ To resolve the issue, please configure the correct benchmark definition. This ca
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_KR_UOS" target="_blank">T3_KR_UOS</a>
@@ -2849,7 +2891,7 @@ To resolve the issue, please configure the correct benchmark definition. This ca
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_MX_Cinvestav" target="_blank">T3_MX_Cinvestav</a>
@@ -2884,7 +2926,7 @@ To resolve the issue, please configure the correct benchmark definition. This ca
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_TW_NTU_HEP" target="_blank">T3_TW_NTU_HEP</a>
@@ -2902,7 +2944,7 @@ To resolve the issue, please configure the correct benchmark definition. This ca
     </table>
 <div class="tickets-section"><p class="no-tickets">No open GGUS tickets</p></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_TW_TIDC" target="_blank">T3_TW_TIDC</a>
@@ -2920,7 +2962,7 @@ To resolve the issue, please configure the correct benchmark definition. This ca
     </table>
 <div class="tickets-section"><p class="no-tickets">No open GGUS tickets</p></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_UK_London_QMUL" target="_blank">T3_UK_London_QMUL</a>
@@ -2981,7 +3023,7 @@ I&#x27;d not expect that - as QMUL isn&#x27;t in LHCONE. I&#x27;ve t</div>
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_UK_SGrid_Oxford" target="_blank">T3_UK_SGrid_Oxford</a>
@@ -3013,7 +3055,7 @@ I&#x27;d not expect that - as QMUL isn&#x27;t in LHCONE. I&#x27;ve t</div>
       <div class="ticket-body">Cheers, I&#x27;ll keep an eye out for new 16-core jobs.</div>
     </div></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_UK_ScotGrid_GLA" target="_blank">T3_UK_ScotGrid_GLA</a>
@@ -3130,7 +3172,7 @@ https://monit-grafana.cern.ch/d/FtSFfwdmk/ddm-transfers?orgId=17&amp;var-binning
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_US_Brown" target="_blank">T3_US_Brown</a>
@@ -3253,7 +3295,7 @@ Could you please review dual stack support on your storage element? Thank you fo
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_US_CMU" target="_blank">T3_US_CMU</a>
@@ -3271,7 +3313,7 @@ Could you please review dual stack support on your storage element? Thank you fo
     </table>
 <div class="tickets-section"><p class="no-tickets">No open GGUS tickets</p></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_US_FNALLPC" target="_blank">T3_US_FNALLPC</a>
@@ -3289,7 +3331,7 @@ Could you please review dual stack support on your storage element? Thank you fo
     </table>
 <div class="tickets-section"><p class="no-tickets">No open GGUS tickets</p></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_US_MIT" target="_blank">T3_US_MIT</a>
@@ -3307,7 +3349,7 @@ Could you please review dual stack support on your storage element? Thank you fo
     </table>
 <div class="tickets-section"><p class="no-tickets">No open GGUS tickets</p></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_US_NotreDame" target="_blank">T3_US_NotreDame</a>
@@ -3389,7 +3431,7 @@ Sent notification on this ticket still waiting for user input to GGUS ticket mon
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_US_OSG" target="_blank">T3_US_OSG</a>
@@ -3425,7 +3467,7 @@ Sent notification on this ticket still waiting for user input to GGUS ticket mon
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_US_Princeton_ICSE" target="_blank">T3_US_Princeton_ICSE</a>
@@ -3443,7 +3485,7 @@ Sent notification on this ticket still waiting for user input to GGUS ticket mon
     </table>
 <div class="tickets-section"><p class="no-tickets">No open GGUS tickets</p></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_US_PuertoRico" target="_blank">T3_US_PuertoRico</a>
@@ -3494,7 +3536,7 @@ Cheers,Noy[1]https://cmssst.web.cern.ch/siteStatus/detail.html?site=T3_US_Puerto
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_US_Rice" target="_blank">T3_US_Rice</a>
@@ -3512,7 +3554,7 @@ Cheers,Noy[1]https://cmssst.web.cern.ch/siteStatus/detail.html?site=T3_US_Puerto
     </table>
 <div class="tickets-section"><p class="no-tickets">No open GGUS tickets</p></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_US_UMD" target="_blank">T3_US_UMD</a>
@@ -3607,7 +3649,7 @@ L</div>
     </div>
     </details></div></div></div>
 
-<div class="site-block">
+<div class="site-block" data-tier="3">
   <div class="site-header">
     <div class="site-name">
       <a href="https://cmssst.web.cern.ch/siteStatus/summary.html#T3_US_UMiss" target="_blank">T3_US_UMiss</a>
