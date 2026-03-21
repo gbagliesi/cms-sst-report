@@ -329,10 +329,14 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
         sites_data.items(),
         key=lambda kv: (tier_num(kv[0]), kv[0])
     )
+    def is_excluded(site):
+        # Exclude decommissioned T2_RU_* sites, but keep T2_RU_JINR (still active)
+        return site.startswith("T2_RU_") and site != "T2_RU_JINR"
+
     if not show_all:
         site_list = [
             (s, d) for s, d in site_list
-            if d["max_severity"] >= 3 and not s.startswith("T2_RU_")
+            if d["max_severity"] >= 3 and not is_excluded(s)
         ]
 
     n_problems = sum(
@@ -434,11 +438,28 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
   }}
   .filter-ctrl input {{ accent-color: #a8d8ea; cursor: pointer; }}
   .site-block.hidden-by-filter {{ display: none; }}
+  .site-block.hidden-by-tier   {{ display: none; }}
+  .tier-ctrl {{
+    display: flex; align-items: center; gap: 10px; margin-left: 16px;
+    font-size: 12px; color: #aaa;
+  }}
+  .tier-ctrl span {{ color: #888; }}
+  .tier-btn {{
+    display: inline-flex; align-items: center; gap: 4px;
+    cursor: pointer; user-select: none;
+  }}
+  .tier-btn input {{ accent-color: #a8d8ea; cursor: pointer; }}
 </style>
 <script>
 function applyFilters() {{
   var n   = parseInt(document.getElementById('days-sel').value);
   var chk = document.getElementById('filter-window').checked;
+
+  // which tiers are selected
+  var activeTiers = {{}};
+  document.querySelectorAll('.tier-chk').forEach(function(cb) {{
+    activeTiers[cb.value] = cb.checked;
+  }});
 
   // show/hide metric columns and headers
   document.querySelectorAll('.dcol').forEach(function(el) {{
@@ -452,8 +473,13 @@ function applyFilters() {{
   var lbl = document.getElementById('days-label');
   if (lbl) lbl.textContent = n + ' day' + (n > 1 ? 's' : '');
 
-  // show/hide site blocks based on window filter
+  // show/hide site blocks based on window filter + tier filter
   document.querySelectorAll('.site-block').forEach(function(block) {{
+    // tier filter
+    var tier = block.getAttribute('data-tier');
+    block.classList.toggle('hidden-by-tier', !activeTiers[tier]);
+
+    // window/error filter
     if (!chk) {{
       block.classList.remove('hidden-by-filter');
       return;
@@ -468,22 +494,36 @@ function applyFilters() {{
     block.classList.toggle('hidden-by-filter', !hasError);
   }});
 
-  // hide tier separators that have no visible site below them
+  // hide tier separators with no visible sites below
   document.querySelectorAll('.tier-separator').forEach(function(sep) {{
     var next = sep.nextElementSibling;
     var anyVisible = false;
     while (next && !next.classList.contains('tier-separator')) {{
-      if (next.classList.contains('site-block') && !next.classList.contains('hidden-by-filter')) {{
+      if (next.classList.contains('site-block') &&
+          !next.classList.contains('hidden-by-filter') &&
+          !next.classList.contains('hidden-by-tier')) {{
         anyVisible = true; break;
       }}
       next = next.nextElementSibling;
     }}
     sep.style.display = anyVisible ? '' : 'none';
   }});
+
+  // update counters
+  var visible = document.querySelectorAll(
+    '.site-block:not(.hidden-by-filter):not(.hidden-by-tier)').length;
+  var total   = document.querySelectorAll('.site-block').length;
+  var cntErr  = document.getElementById('cnt-err');
+  var cntTot  = document.getElementById('cnt-total');
+  if (cntErr) cntErr.textContent = visible;
+  if (cntTot) cntTot.textContent = total;
 }}
 window.addEventListener('DOMContentLoaded', function() {{
   document.getElementById('days-sel').addEventListener('change', applyFilters);
   document.getElementById('filter-window').addEventListener('change', applyFilters);
+  document.querySelectorAll('.tier-chk').forEach(function(cb) {{
+    cb.addEventListener('change', applyFilters);
+  }});
   applyFilters();
 }});
 </script>
@@ -506,11 +546,17 @@ window.addEventListener('DOMContentLoaded', function() {{
     <input type="checkbox" id="filter-window" checked>
     Show only sites with errors in selected window
   </label>
+  <div class="tier-ctrl">
+    <span>Tier:</span>
+    <label class="tier-btn"><input class="tier-chk" type="checkbox" value="1" checked> T1</label>
+    <label class="tier-btn"><input class="tier-chk" type="checkbox" value="2" checked> T2</label>
+    <label class="tier-btn"><input class="tier-chk" type="checkbox" value="3" checked> T3</label>
+  </div>
 </div>
 
 <div class="summary">
-  <span>Sites with errors: <span class="badge-err">{n_problems}</span></span>
-  <span>Total sites: {len(sites_data)}</span>
+  <span>Sites shown: <span class="badge-err" id="cnt-err">{n_problems}</span></span>
+  <span>Total in report: <span id="cnt-total">{n_problems}</span></span>
 </div>
 
 <p style="color:#888;font-size:11px;margin-bottom:16px">
@@ -543,7 +589,7 @@ window.addEventListener('DOMContentLoaded', function() {{
         report_anchor = f"https://cmssst.web.cern.ch/sitereadiness/report.html#{site_name}"
 
         html_out += f"""
-<div class="site-block">
+<div class="site-block" data-tier="{this_tier}">
   <div class="site-header">
     <div class="site-name">
       <a href="{summary_url}" target="_blank">{site_name}</a>
@@ -694,7 +740,7 @@ def main():
     # Print terminal summary
     problem_sites = [
         (s, d) for s, d in sites_data.items()
-        if d["max_severity"] >= 3 and not s.startswith("T2_RU_")
+        if d["max_severity"] >= 3 and not (s.startswith("T2_RU_") and s != "T2_RU_JINR")
     ]
     problem_sites.sort(key=lambda x: (int(re.match(r"T(\d)", x[0]).group(1)), x[0]))
     print(f"\n{'='*60}", file=sys.stderr)
