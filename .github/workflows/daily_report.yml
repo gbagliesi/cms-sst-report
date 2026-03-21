@@ -41,4 +41,5 @@ jobs:
           # Only commit if something changed
           git diff --cached --quiet || \
             git commit -m "chore: update daily CMS SST report $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git pull --rebase --autostash
           git push
