@@ -1,3 +1,4 @@
 #!/bin/bash
+# Double-click from Finder to launch the CMS SST report with live-refresh support.
 cd "$(dirname "$0")"
-python3 cms_site_report.py --out cms_report.html && open cms_report.html
+python3 cms_local_server.py

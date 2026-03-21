@@ -357,25 +357,18 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
         m = re.match(r"T(\d)", site)
         return int(m.group(1)) if m else 9
 
-    # Filter: only ERROR sites (severity >= 3), sort by tier then alphabetically
-    site_list = sorted(
-        sites_data.items(),
-        key=lambda kv: (tier_num(kv[0]), kv[0])
-    )
     def is_excluded(site):
         # Exclude decommissioned T2_RU_* sites, but keep T2_RU_JINR (still active)
         return site.startswith("T2_RU_") and site != "T2_RU_JINR"
 
-    if not show_all:
-        site_list = [
-            (s, d) for s, d in site_list
-            if d["max_severity"] >= 3 and not is_excluded(s)
-        ]
-
-    n_problems = sum(
-        1 for s, d in site_list
-        if d["max_severity"] > 0 or s in ggus_by_site
+    # Always generate ALL non-excluded sites; client-side JS controls visibility
+    site_list = sorted(
+        [(s, d) for s, d in sites_data.items() if not is_excluded(s)],
+        key=lambda kv: (tier_num(kv[0]), kv[0])
     )
+
+    n_total  = len(site_list)
+    n_errors = sum(1 for s, d in site_list if d["max_severity"] >= 3)
 
     # --- CSS + HTML ---
     html_out = f"""<!DOCTYPE html>
@@ -500,8 +493,9 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
 </style>
 <script>
 function applyFilters() {{
-  var n   = parseInt(document.getElementById('days-sel').value);
-  var chk = document.getElementById('filter-window').checked;
+  var n       = parseInt(document.getElementById('days-sel').value);
+  var chkErr  = document.getElementById('filter-errors').checked;
+  var chkOk   = document.getElementById('filter-ok').checked;
 
   // which tiers are selected
   var activeTiers = {{}};
@@ -521,17 +515,17 @@ function applyFilters() {{
   var lbl = document.getElementById('days-label');
   if (lbl) lbl.textContent = n + ' day' + (n > 1 ? 's' : '');
 
-  // show/hide site blocks based on window filter + tier filter
+  var shownCount = 0;
+  var shownErrors = 0;
+
+  // show/hide site blocks
   document.querySelectorAll('.site-block').forEach(function(block) {{
     // tier filter
     var tier = block.getAttribute('data-tier');
-    block.classList.toggle('hidden-by-tier', !activeTiers[tier]);
+    var tierOk = activeTiers[tier];
+    block.classList.toggle('hidden-by-tier', !tierOk);
 
-    // window/error filter
-    if (!chk) {{
-      block.classList.remove('hidden-by-filter');
-      return;
-    }}
+    // check if site has error in selected window
     var hasError = false;
     block.querySelectorAll('.dcol[data-status]').forEach(function(cell) {{
       if (parseInt(cell.getAttribute('data-didx')) <= n &&
@@ -539,7 +533,21 @@ function applyFilters() {{
         hasError = true;
       }}
     }});
-    block.classList.toggle('hidden-by-filter', !hasError);
+
+    // filter logic: if neither checkbox active → show all
+    var passFilter;
+    if (!chkErr && !chkOk) {{
+      passFilter = true;
+    }} else {{
+      passFilter = (chkErr && hasError) || (chkOk && !hasError);
+    }}
+
+    block.classList.toggle('hidden-by-filter', !passFilter);
+
+    if (tierOk && passFilter) {{
+      shownCount++;
+      if (hasError) shownErrors++;
+    }}
   }});
 
   // hide tier separators with no visible sites below
@@ -558,17 +566,45 @@ function applyFilters() {{
   }});
 
   // update counters
-  var visible = document.querySelectorAll(
-    '.site-block:not(.hidden-by-filter):not(.hidden-by-tier)').length;
-  var total   = document.querySelectorAll('.site-block').length;
-  var cntErr  = document.getElementById('cnt-err');
-  var cntTot  = document.getElementById('cnt-total');
-  if (cntErr) cntErr.textContent = visible;
-  if (cntTot) cntTot.textContent = total;
+  var elShown  = document.getElementById('cnt-shown');
+  var elErr    = document.getElementById('cnt-err');
+  var elTotal  = document.getElementById('cnt-total');
+  if (elShown) elShown.textContent = shownCount;
+  if (elErr)   elErr.textContent   = shownErrors;
+  if (elTotal) elTotal.textContent = document.querySelectorAll('.site-block').length;
 }}
+
+function doRefresh() {{
+  var btn = document.getElementById('refresh-btn');
+  var isLocal = window.location.hostname === 'localhost' ||
+                window.location.hostname === '127.0.0.1';
+  if (isLocal) {{
+    btn.textContent = '⟳';
+    btn.title = 'Refreshing...';
+    btn.disabled = true;
+    fetch('/refresh')
+      .then(function(r) {{ return r.json(); }})
+      .then(function(d) {{
+        if (d.status === 'ok') {{ location.reload(); }}
+        else {{
+          btn.disabled = false;
+          btn.title = 'Error — check terminal';
+          btn.textContent = '⟳';
+        }}
+      }})
+      .catch(function() {{
+        btn.disabled = false;
+        btn.title = 'Server not reachable (run cms_local_server.py)';
+      }});
+  }} else {{
+    window.open('https://github.com/gbagliesi/cms-sst-report/actions', '_blank');
+  }}
+}}
+
 window.addEventListener('DOMContentLoaded', function() {{
   document.getElementById('days-sel').addEventListener('change', applyFilters);
-  document.getElementById('filter-window').addEventListener('change', applyFilters);
+  document.getElementById('filter-errors').addEventListener('change', applyFilters);
+  document.getElementById('filter-ok').addEventListener('change', applyFilters);
   document.querySelectorAll('.tier-chk').forEach(function(cb) {{
     cb.addEventListener('change', applyFilters);
   }});
@@ -578,12 +614,15 @@ window.addEventListener('DOMContentLoaded', function() {{
 </head>
 <body>
 
-<h1>&#9888; CMS SST — Sites with Problems</h1>
+<h1>&#9888; CMS SST — Daily Site Report</h1>
 <div class="subtitle" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
   <span>Generated: {now_str} &nbsp;|&nbsp;
     Source: <a href="{REPORT_URL}" target="_blank" style="color:#a8d8ea">sitereadiness/report.html</a> +
     <a href="https://helpdesk.ggus.eu" target="_blank" style="color:#a8d8ea">GGUS</a>
   </span>
+  <button id="refresh-btn" onclick="doRefresh()" title="Refresh data (local) or open GitHub Actions (GitHub Pages)"
+    style="background:#0f3460;color:#a8d8ea;border:1px solid #a8d8ea;border-radius:4px;
+           padding:2px 10px;cursor:pointer;font-size:14px;margin-left:4px;">&#8635;</button>
   <div class="days-ctrl">
     <label>Window:</label>
     <select id="days-sel">
@@ -591,8 +630,12 @@ window.addEventListener('DOMContentLoaded', function() {{
     </select>
   </div>
   <label class="filter-ctrl">
-    <input type="checkbox" id="filter-window" checked>
-    Show only sites with errors in selected window
+    <input type="checkbox" id="filter-errors" checked>
+    Show sites with errors in window
+  </label>
+  <label class="filter-ctrl">
+    <input type="checkbox" id="filter-ok">
+    Show OK sites in window
   </label>
   <div class="tier-ctrl">
     <span>Tier:</span>
@@ -603,13 +646,15 @@ window.addEventListener('DOMContentLoaded', function() {{
 </div>
 
 <div class="summary">
-  <span>Sites shown: <span class="badge-err" id="cnt-err">{n_problems}</span></span>
-  <span>Total in report: <span id="cnt-total">{n_problems}</span></span>
+  <span>Shown: <span class="badge-err" id="cnt-shown">{n_errors}</span></span>
+  <span>&#128308; With errors: <span id="cnt-err">{n_errors}</span></span>
+  <span>Total sites: <span id="cnt-total">{n_total}</span></span>
 </div>
 
 <p style="color:#888;font-size:11px;margin-bottom:16px">
-  Metric columns = last <span id="days-label">{problem_days} days</span> (oldest to most recent, left to right).<br>
-  Click a cell to open the detailed SAM/HC/FTS log. Click a site name for the full readiness report.
+  Metric columns = last <span id="days-label">{problem_days} days</span> (oldest &#8594; most recent).<br>
+  Click a cell for the SAM/HC/FTS log. Click a site name for the full readiness report.
+  &#8635; refreshes data locally or opens GitHub Actions on the public page.
 </p>
 """
 
@@ -637,7 +682,7 @@ window.addEventListener('DOMContentLoaded', function() {{
         report_anchor = f"https://cmssst.web.cern.ch/sitereadiness/report.html#{site_name}"
 
         html_out += f"""
-<div class="site-block" data-tier="{this_tier}">
+<div class="site-block" data-tier="{this_tier}" data-severity="{sev}">
   <div class="site-header">
     <div class="site-name">
       <a href="{summary_url}" target="_blank">{site_name}</a>
