@@ -25,6 +25,12 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Restore article cache
+        uses: actions/cache@v4
+        with:
+          path: documentation/ggus_article_cache.json
+          key: ggus-article-cache-${{ runner.os }}
+
       - name: Generate report
         env:
           GGUS_TOKEN: ${{ secrets.GGUS_TOKEN }}

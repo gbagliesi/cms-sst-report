@@ -35,6 +35,7 @@ REPORT_URL   = "https://cmssst.web.cern.ch/sitereadiness/report.html"
 GGUS_API     = "https://helpdesk.ggus.eu/api/v1"
 GGUS_TICKET_URL = "https://helpdesk.ggus.eu/#ticket/zoom/{id}"
 MAX_DAYS = 7   # maximum days parsed and embedded in the report
+ARTICLE_CACHE = Path("documentation/ggus_article_cache.json")
 
 COLOR_OK       = "#80FF80"
 COLOR_WARNING  = "#FFFF00"
@@ -189,9 +190,29 @@ def parse_report(content, problem_days=MAX_DAYS):
 
 
 # ---------------------------------------------------------------------------
+# Article cache helpers
+# ---------------------------------------------------------------------------
+def load_article_cache():
+    if ARTICLE_CACHE.exists():
+        try:
+            return json.loads(ARTICLE_CACHE.read_text())
+        except Exception:
+            pass
+    return {}
+
+
+def save_article_cache(cache):
+    try:
+        ARTICLE_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        ARTICLE_CACHE.write_text(json.dumps(cache, separators=(",", ":")))
+    except Exception as e:
+        print(f"[WARN] Could not save article cache: {e}", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
 # Fetch GGUS tickets
 # ---------------------------------------------------------------------------
-def fetch_ggus_tickets(token, max_batches=64):
+def fetch_ggus_tickets(token, art_cache=None, max_batches=64):
     """
     Return dict: {cms_site_name: [{id, number, title, state, priority,
                                     created_at, updated_at, body}, ...]}
@@ -235,17 +256,28 @@ def fetch_ggus_tickets(token, max_batches=64):
         if not cms_site:
             continue  # skip tickets with no identifiable CMS site
 
-        # Fetch primo articolo (descrizione)
-        body = ""
-        art_ids = t.get("article_ids", [])
-        if art_ids:
+        # Fetch all articles (use cache to avoid re-fetching)
+        if art_cache is None:
+            art_cache = {}
+        articles = []
+        for art_id in t.get("article_ids", []):
+            key = str(art_id)
+            if key in art_cache:
+                articles.append(art_cache[key])
+                continue
             try:
-                art_url = f"{GGUS_API}/ticket_articles/{art_ids[0]}"
-                art = json.loads(fetch(art_url, headers))
-                raw = art.get("body", "")
-                body = html.unescape(strip_tags(raw))[:800]
+                art = json.loads(fetch(f"{GGUS_API}/ticket_articles/{art_id}", headers))
+                entry = {
+                    "from":       art.get("from", ""),
+                    "created_at": (art.get("created_at") or "")[:19].replace("T", " "),
+                    "body":       html.unescape(strip_tags(art.get("body", "")))[:2000],
+                }
+                articles.append(entry)
+                art_cache[key] = entry
             except Exception:
                 pass
+        # first article body (for backward compat / summary display)
+        body = articles[0]["body"] if articles else ""
 
         # Classifica: CMS VO se vo_support=='cms' o area inizia con 'CMS'
         vo = (t.get("vo_support") or "").lower()
@@ -261,6 +293,7 @@ def fetch_ggus_tickets(token, max_batches=64):
             "created_at": t.get("created_at", ""),
             "updated_at": t.get("updated_at", ""),
             "body":       body,
+            "articles":   articles,
             "is_cms":     is_cms,
         }
         by_site.setdefault(cms_site, []).append(entry)
@@ -449,6 +482,21 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
     cursor: pointer; user-select: none;
   }}
   .tier-btn input {{ accent-color: #a8d8ea; cursor: pointer; }}
+
+  /* Ticket conversation */
+  details.ticket-conv {{ margin-top: 6px; }}
+  details.ticket-conv > summary {{
+    cursor: pointer; font-size: 11px; color: #6a9fb5; list-style: none;
+    padding: 2px 0; user-select: none;
+  }}
+  details.ticket-conv > summary:hover {{ color: #a8d8ea; }}
+  details.ticket-conv > summary::before {{ content: "▶ "; font-size: 9px; }}
+  details.ticket-conv[open] > summary::before {{ content: "▼ "; font-size: 9px; }}
+  .conv-article {{ margin-top: 8px; padding: 6px 10px; background: #0d1b2e;
+                   border-left: 2px solid #1e4d6b; border-radius: 0 4px 4px 0; }}
+  .conv-article-meta {{ font-size: 10px; color: #666; margin-bottom: 4px; }}
+  .conv-article-body {{ font-size: 11px; color: #aaa; white-space: pre-wrap;
+                        max-height: 200px; overflow-y: auto; }}
 </style>
 <script>
 function applyFilters() {{
@@ -629,12 +677,32 @@ window.addEventListener('DOMContentLoaded', function() {{
                 created   = t["created_at"][:10]
                 updated   = t["updated_at"][:10]
                 days_open = days_ago(t["created_at"])
-                body_safe = html.escape(t["body"]) if t["body"] else ""
-                body_html = f'<div class="ticket-body">{body_safe}</div>' if body_safe else ""
-                if t.get("is_cms"):
-                    vo_badge = '<span class="vo-badge vo-cms">CMS</span>'
-                else:
-                    vo_badge = '<span class="vo-badge vo-wlcg">WLCG</span>'
+                vo_badge  = '<span class="vo-badge vo-cms">CMS</span>' if t.get("is_cms") \
+                            else '<span class="vo-badge vo-wlcg">WLCG</span>'
+                articles  = t.get("articles", [])
+                n_art     = len(articles)
+                # Build conversation block
+                conv_html = ""
+                if articles:
+                    parts = []
+                    for i, art in enumerate(articles):
+                        sender   = html.escape(art.get("from", "unknown"))
+                        art_date = art.get("created_at", "")[:16]
+                        body_e   = html.escape(art.get("body", ""))
+                        label    = "Initial report" if i == 0 else f"Reply {i}"
+                        parts.append(
+                            f'<div class="conv-article">'
+                            f'<div class="conv-article-meta">#{i+1} {label} &nbsp;|&nbsp; {sender} &nbsp;|&nbsp; {art_date}</div>'
+                            f'<div class="conv-article-body">{body_e}</div>'
+                            f'</div>'
+                        )
+                    conv_inner = "\n".join(parts)
+                    conv_html = (
+                        f'<details class="ticket-conv">'
+                        f'<summary>Conversation ({n_art} message{"s" if n_art != 1 else ""})</summary>'
+                        f'{conv_inner}'
+                        f'</details>'
+                    )
                 return f"""
     <div class="ticket {age_class}">
       <div class="ticket-header">
@@ -648,7 +716,7 @@ window.addEventListener('DOMContentLoaded', function() {{
         Opened: {created} ({days_open}d ago) &nbsp;|&nbsp;
         Updated: {updated}
       </div>
-      {body_html}
+      {conv_html}
     </div>"""
 
             for t in recent:
@@ -719,12 +787,17 @@ def main():
     sites_data = parse_report(report_content)
     print(f"  {len(sites_data)} sites found", file=sys.stderr)
 
-    # --- Fetch GGUS tickets ---
+    # --- Fetch GGUS tickets (with article cache) ---
     print("Fetching GGUS tickets ...", file=sys.stderr)
+    art_cache = load_article_cache()
+    cached_before = len(art_cache)
     try:
-        ggus_by_site = fetch_ggus_tickets(token)
+        ggus_by_site = fetch_ggus_tickets(token, art_cache=art_cache)
         total_tickets = sum(len(v) for v in ggus_by_site.values())
+        new_articles = len(art_cache) - cached_before
         print(f"  {total_tickets} open tickets across {len(ggus_by_site)} sites", file=sys.stderr)
+        print(f"  Articles: {new_articles} new fetched, {cached_before} from cache", file=sys.stderr)
+        save_article_cache(art_cache)
     except Exception as e:
         print(f"[WARN] GGUS fetch failed: {e}. Continuing without tickets.", file=sys.stderr)
         ggus_by_site = {}
