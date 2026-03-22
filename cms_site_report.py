@@ -484,6 +484,14 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
   .filter-ctrl input {{ accent-color: #1a4a6e; cursor: pointer; }}
   .site-block.hidden-by-filter {{ display: none; }}
   .site-block.hidden-by-tier   {{ display: none; }}
+  .site-block.hidden-by-search {{ display: none; }}
+  .site-search-wrap {{ display:flex; align-items:center; gap:6px; }}
+  #site-search {{
+    padding: 3px 8px; border: 1px solid #1a4a6e; border-radius: 4px;
+    font-size: 13px; width: 200px; background:#fff; color:#1a1a2e;
+  }}
+  #site-search:focus {{ outline: 2px solid #1a4a6e; }}
+  #search-hint {{ font-size: 12px; color: #888; font-style: italic; }}
   .tier-ctrl {{
     display: flex; align-items: center; gap: 10px; margin-left: 16px;
     font-size: 12px; color: #555;
@@ -544,6 +552,18 @@ function applyFilters() {{
   var n       = parseInt(document.getElementById('days-sel').value);
   var chkErr  = document.getElementById('filter-errors').checked;
   var chkOk   = document.getElementById('filter-ok').checked;
+  var search  = document.getElementById('site-search').value.trim().toLowerCase();
+  var searchActive = search.length >= 3;
+
+  // search hint
+  var hint = document.getElementById('search-hint');
+  if (hint) {{
+    if (search.length > 0 && search.length < 3) {{
+      hint.textContent = 'min. 3 characters'; hint.style.display = '';
+    }} else {{
+      hint.style.display = 'none';
+    }}
+  }}
 
   // which tiers are selected
   var activeTiers = {{}};
@@ -568,12 +588,6 @@ function applyFilters() {{
 
   // show/hide site blocks
   document.querySelectorAll('.site-block').forEach(function(block) {{
-    // tier filter
-    var tier = block.getAttribute('data-tier');
-    var tierOk = activeTiers[tier];
-    block.classList.toggle('hidden-by-tier', !tierOk);
-
-    // check if site has error in selected window
     var hasError = false;
     block.querySelectorAll('.dcol[data-status]').forEach(function(cell) {{
       if (parseInt(cell.getAttribute('data-didx')) <= n &&
@@ -582,24 +596,34 @@ function applyFilters() {{
       }}
     }});
 
-    // filter logic: if neither checkbox active → show all
-    var passFilter;
-    if (!chkErr && !chkOk) {{
-      passFilter = true;
+    if (searchActive) {{
+      // search mode: ignore tier/error filters, match by site name
+      var siteName = (block.getAttribute('data-site') || '').toLowerCase();
+      var match = siteName.includes(search);
+      block.classList.toggle('hidden-by-search', !match);
+      block.classList.remove('hidden-by-tier');
+      block.classList.remove('hidden-by-filter');
+      if (match) {{ shownCount++; if (hasError) shownErrors++; }}
     }} else {{
-      passFilter = (chkErr && hasError) || (chkOk && !hasError);
-    }}
-
-    block.classList.toggle('hidden-by-filter', !passFilter);
-
-    if (tierOk && passFilter) {{
-      shownCount++;
-      if (hasError) shownErrors++;
+      // normal mode
+      block.classList.remove('hidden-by-search');
+      var tier = block.getAttribute('data-tier');
+      var tierOk = activeTiers[tier];
+      block.classList.toggle('hidden-by-tier', !tierOk);
+      var passFilter;
+      if (!chkErr && !chkOk) {{
+        passFilter = true;
+      }} else {{
+        passFilter = (chkErr && hasError) || (chkOk && !hasError);
+      }}
+      block.classList.toggle('hidden-by-filter', !passFilter);
+      if (tierOk && passFilter) {{ shownCount++; if (hasError) shownErrors++; }}
     }}
   }});
 
-  // hide tier separators with no visible sites below
+  // hide tier separators
   document.querySelectorAll('.tier-separator').forEach(function(sep) {{
+    if (searchActive) {{ sep.style.display = 'none'; return; }}
     var next = sep.nextElementSibling;
     var anyVisible = false;
     while (next && !next.classList.contains('tier-separator')) {{
@@ -613,12 +637,16 @@ function applyFilters() {{
     sep.style.display = anyVisible ? '' : 'none';
   }});
 
-  // count sites in selected tiers (regardless of error/ok filter)
-  var tierCount = 0;
-  document.querySelectorAll('.site-block').forEach(function(block) {{
-    var tier = block.getAttribute('data-tier');
-    if (activeTiers[tier]) tierCount++;
-  }});
+  // total count
+  var tierCount;
+  if (searchActive) {{
+    tierCount = shownCount;
+  }} else {{
+    tierCount = 0;
+    document.querySelectorAll('.site-block').forEach(function(block) {{
+      if (activeTiers[block.getAttribute('data-tier')]) tierCount++;
+    }});
+  }}
 
   // update counters
   var elShown  = document.getElementById('cnt-shown');
@@ -660,6 +688,7 @@ window.addEventListener('DOMContentLoaded', function() {{
   document.getElementById('days-sel').addEventListener('change', applyFilters);
   document.getElementById('filter-errors').addEventListener('change', applyFilters);
   document.getElementById('filter-ok').addEventListener('change', applyFilters);
+  document.getElementById('site-search').addEventListener('input', applyFilters);
   document.querySelectorAll('.tier-chk').forEach(function(cb) {{
     cb.addEventListener('change', applyFilters);
   }});
@@ -779,6 +808,10 @@ document.addEventListener('keydown', function(e) {{
     <label class="tier-btn"><input class="tier-chk" type="checkbox" value="2" checked> T2</label>
     <label class="tier-btn"><input class="tier-chk" type="checkbox" value="3" checked> T3</label>
   </div>
+  <div class="site-search-wrap">
+    <input type="text" id="site-search" placeholder="&#128269; Search site..." autocomplete="off" spellcheck="false">
+    <span id="search-hint" style="display:none"></span>
+  </div>
 </div>
 
 <div class="summary">
@@ -852,7 +885,7 @@ document.addEventListener('keydown', function(e) {{
             ticket_stat = ''
 
         html_out += f"""
-<div class="site-block" data-tier="{this_tier}" data-severity="{sev}">
+<div class="site-block" data-tier="{this_tier}" data-severity="{sev}" data-site="{site_name}">
   <div class="site-header">
     <div class="site-name">
       <a href="{summary_url}" target="_blank">{site_name}</a>
