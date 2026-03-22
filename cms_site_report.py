@@ -692,6 +692,17 @@ window.addEventListener('DOMContentLoaded', function() {{
         summary_url = f"https://cmssst.web.cern.ch/sitereadiness/report.html#{site_name}"
         report_anchor = f"https://cmssst.web.cern.ch/siteStatus/detail.html?site={site_name}"
 
+        n_cms  = sum(1 for t in tickets if t.get("is_cms"))
+        n_wlcg = n_tickets - n_cms
+        n_old  = sum(1 for t in tickets if days_ago(t["created_at"]) > 90)
+        if n_tickets:
+            ticket_stat = f'&#128190; tickets: {n_tickets}'
+            if n_cms:  ticket_stat += f', CMS: {n_cms}'
+            if n_wlcg: ticket_stat += f', WLCG: {n_wlcg}'
+            if n_old:  ticket_stat += f', <span style="color:#ffaa66">(old &gt;3mo: {n_old})</span>'
+        else:
+            ticket_stat = ''
+
         html_out += f"""
 <div class="site-block" data-tier="{this_tier}" data-severity="{sev}">
   <div class="site-header">
@@ -701,7 +712,7 @@ window.addEventListener('DOMContentLoaded', function() {{
     <span class="site-tier">{tier_str}</span>
     <span class="sev-badge" style="background:{sev_color};color:#fff">{sev_label}</span>
     <a href="{report_anchor}" target="_blank" class="full-report-link">full report</a>
-    <span class="ticket-count">{'&#128190; ' + str(n_tickets) + (' ticket' if n_tickets == 1 else ' tickets') if n_tickets else ''}</span>
+    <span class="ticket-count">{ticket_stat}</span>
   </div>
   <div class="site-body">
     <table class="metrics-table">
