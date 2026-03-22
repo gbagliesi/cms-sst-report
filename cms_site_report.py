@@ -76,7 +76,8 @@ def cell_status(bg_color):
 
 
 def strip_tags(text):
-    return re.sub(r"<[^>]+>", "", text).strip()
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r" +", " ", text).strip()
 
 
 def linkify(text):
