@@ -699,7 +699,8 @@ function openDrawer(siteName, filter) {{
   if      (filter === 'cms')  filtered = tickets.filter(function(t) {{ return t.is_cms; }});
   else if (filter === 'wlcg') filtered = tickets.filter(function(t) {{ return !t.is_cms; }});
   else if (filter === 'old')  filtered = tickets.filter(function(t) {{ return t.days_open > 90; }});
-  else                        filtered = tickets;
+  else                        filtered = tickets.slice();
+  filtered.sort(function(a, b) {{ return b.created_at < a.created_at ? -1 : b.created_at > a.created_at ? 1 : 0; }});
   var labels = {{ all:'All', cms:'CMS', wlcg:'WLCG', old:'Old >3mo' }};
   document.getElementById('drawer-title').textContent =
     siteName + ' — ' + (labels[filter] || filter) + ' tickets (' + filtered.length + ')';
