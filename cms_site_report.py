@@ -383,7 +383,7 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
   h1   {{ color: #1a4a6e; font-size: 18px; margin-bottom: 4px; }}
   .subtitle {{ color: #555; font-size: 12px; margin-bottom: 24px; }}
   .summary {{ background: #ffffff; border: 1px solid #c0d0e0; border-radius: 6px;
-              padding: 10px 16px; margin-bottom: 20px; display: flex; gap: 24px; }}
+              padding: 10px 16px; margin-bottom: 20px; display: flex; gap: 24px; align-items: center; }}
   .summary span {{ font-size: 13px; }}
   .badge-err  {{ background: #FF4444; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; }}
   .badge-ok   {{ background: #44BB44; color: #fff; padding: 2px 8px; border-radius: 4px; }}
