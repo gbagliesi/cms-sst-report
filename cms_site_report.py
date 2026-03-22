@@ -494,6 +494,35 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
   .conv-article-meta {{ font-size: 10px; color: #888; margin-bottom: 4px; }}
   .conv-article-body {{ font-size: 11px; color: #444; white-space: pre-wrap;
                         max-height: 200px; overflow-y: auto; }}
+
+  /* Ticket drawer */
+  #drawer-overlay {{
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.25); z-index: 1000;
+  }}
+  #drawer-overlay.open {{ display: block; }}
+  #ticket-drawer {{
+    position: fixed; top: 0; right: 0; width: 44%; height: 100%;
+    background: #f0f4f8; border-left: 2px solid #1a4a6e;
+    z-index: 1001; transform: translateX(100%);
+    transition: transform 0.25s ease;
+    display: flex; flex-direction: column; overflow: hidden;
+  }}
+  #ticket-drawer.open {{ transform: translateX(0); }}
+  #drawer-header {{
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; background: #1a4a6e; color: #fff; flex-shrink: 0;
+  }}
+  #drawer-title {{ font-size: 13px; font-weight: bold; }}
+  #drawer-close {{
+    background: none; border: none; color: #fff; font-size: 22px;
+    cursor: pointer; padding: 0 4px; line-height: 1;
+  }}
+  #drawer-body {{ flex: 1; overflow-y: auto; padding: 14px; }}
+  .tstat-link {{
+    cursor: pointer; text-decoration: underline dotted; color: inherit;
+  }}
+  .tstat-link:hover {{ color: #ffffff; }}
 </style>
 <script>
 function applyFilters() {{
@@ -621,6 +650,74 @@ window.addEventListener('DOMContentLoaded', function() {{
   }});
   applyFilters();
 }});
+
+// --- Ticket Drawer ---
+function escHtml(s) {{
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}}
+
+function renderDrawerTicket(t) {{
+  var ageClass = t.days_open > 30 ? 'ticket-old' : (t.days_open > 7 ? 'ticket-week' : 'ticket-new');
+  var voBadge = t.is_cms
+    ? '<span class="vo-badge vo-cms">CMS</span>'
+    : '<span class="vo-badge vo-wlcg">WLCG</span>';
+  var tUrl = 'https://helpdesk.ggus.eu/#ticket/zoom/' + t.id;
+  var openedHtml = t.days_open > 90
+    ? '<span style="color:#cc4400;font-weight:bold">' + escHtml(t.created_at) + ' (' + t.days_open + 'd ago)</span>'
+    : escHtml(t.created_at) + ' (' + t.days_open + 'd ago)';
+  var convHtml = '';
+  if (t.articles && t.articles.length) {{
+    var nArt = t.articles.length;
+    var parts = t.articles.map(function(art, i) {{
+      var label = i === 0 ? 'Initial report' : 'Reply ' + i;
+      return '<div class="conv-article">'
+        + '<div class="conv-article-meta">#' + (i+1) + ' ' + label
+        + ' &nbsp;|&nbsp; ' + escHtml(art.from)
+        + ' &nbsp;|&nbsp; ' + escHtml(art.created_at) + '</div>'
+        + '<div class="conv-article-body">' + escHtml(art.body) + '</div>'
+        + '</div>';
+    }});
+    convHtml = '<details class="ticket-conv"><summary>Conversation ('
+      + nArt + ' message' + (nArt !== 1 ? 's' : '') + ')</summary>'
+      + parts.join('') + '</details>';
+  }}
+  return '<div class="ticket ' + ageClass + '">'
+    + '<div class="ticket-header">' + voBadge
+    + ' <span class="ticket-id"><a href="' + tUrl + '" target="_blank">#'
+    + escHtml(String(t.number)) + ' (id:' + t.id + ')</a></span>'
+    + ' <span class="ticket-title">' + escHtml(t.title) + '</span></div>'
+    + '<div class="ticket-meta">State: <b>' + escHtml(t.state) + '</b>'
+    + ' &nbsp;|&nbsp; Priority: ' + escHtml(t.priority)
+    + ' &nbsp;|&nbsp; Opened: ' + openedHtml
+    + ' &nbsp;|&nbsp; Updated: ' + escHtml(t.updated_at) + '</div>'
+    + convHtml + '</div>';
+}}
+
+function openDrawer(siteName, filter) {{
+  var tickets = (window.TICKET_DATA && window.TICKET_DATA[siteName]) || [];
+  var filtered;
+  if      (filter === 'cms')  filtered = tickets.filter(function(t) {{ return t.is_cms; }});
+  else if (filter === 'wlcg') filtered = tickets.filter(function(t) {{ return !t.is_cms; }});
+  else if (filter === 'old')  filtered = tickets.filter(function(t) {{ return t.days_open > 90; }});
+  else                        filtered = tickets;
+  var labels = {{ all:'All', cms:'CMS', wlcg:'WLCG', old:'Old >3mo' }};
+  document.getElementById('drawer-title').textContent =
+    siteName + ' — ' + (labels[filter] || filter) + ' tickets (' + filtered.length + ')';
+  document.getElementById('drawer-body').innerHTML = filtered.length
+    ? filtered.map(renderDrawerTicket).join('')
+    : '<p class="no-tickets">No tickets in this filter.</p>';
+  document.getElementById('ticket-drawer').classList.add('open');
+  document.getElementById('drawer-overlay').classList.add('open');
+}}
+
+function closeDrawer() {{
+  document.getElementById('ticket-drawer').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+}}
+
+document.addEventListener('keydown', function(e) {{
+  if (e.key === 'Escape') closeDrawer();
+}});
 </script>
 </head>
 <body>
@@ -669,6 +766,28 @@ window.addEventListener('DOMContentLoaded', function() {{
 </p>
 """
 
+    # Build ticket data for JS drawer
+    ticket_js_data = {}
+    for sn, _ in site_list:
+        ts = ggus_by_site.get(sn, [])
+        if ts:
+            ticket_js_data[sn] = [{
+                "id":         t["id"],
+                "number":     t.get("number", ""),
+                "title":      t.get("title", ""),
+                "state":      t.get("state", ""),
+                "priority":   t.get("priority", ""),
+                "created_at": t.get("created_at", "")[:10],
+                "updated_at": t.get("updated_at", "")[:10],
+                "days_open":  days_ago(t.get("created_at", "")),
+                "is_cms":     t.get("is_cms", False),
+                "articles": [
+                    {"from": a.get("from", ""), "created_at": a.get("created_at", "")[:16], "body": a.get("body", "")}
+                    for a in t.get("articles", [])
+                ],
+            } for t in ts]
+    html_out += f'<script>window.TICKET_DATA={json.dumps(ticket_js_data, ensure_ascii=False)};</script>\n'
+
     # Headers: didx 1=most recent … MAX_DAYS=oldest; rendered text updated by JS
     col_headers = "".join(
         f'<th class="dth" data-didx="{didx}">-{didx}d</th>'
@@ -696,10 +815,11 @@ window.addEventListener('DOMContentLoaded', function() {{
         n_wlcg = n_tickets - n_cms
         n_old  = sum(1 for t in tickets if days_ago(t["created_at"]) > 90)
         if n_tickets:
-            ticket_stat = f'&#128190; tickets: {n_tickets}'
-            if n_cms:  ticket_stat += f', CMS: {n_cms}'
-            if n_wlcg: ticket_stat += f', WLCG: {n_wlcg}'
-            if n_old:  ticket_stat += f', <span style="color:#ffaa66">(old &gt;3mo: {n_old})</span>'
+            sn_js = site_name.replace("'", "\\'")
+            ticket_stat  = f'&#128190; <span class="tstat-link" onclick="openDrawer(\'{sn_js}\',\'all\')">tickets: {n_tickets}</span>'
+            if n_cms:  ticket_stat += f', <span class="tstat-link" onclick="openDrawer(\'{sn_js}\',\'cms\')">CMS: {n_cms}</span>'
+            if n_wlcg: ticket_stat += f', <span class="tstat-link" onclick="openDrawer(\'{sn_js}\',\'wlcg\')">WLCG: {n_wlcg}</span>'
+            if n_old:  ticket_stat += f', <span class="tstat-link" onclick="openDrawer(\'{sn_js}\',\'old\')" style="color:#ffaa66">(old &gt;3mo: {n_old})</span>'
         else:
             ticket_stat = ''
 
@@ -804,6 +924,15 @@ window.addEventListener('DOMContentLoaded', function() {{
   <a href="https://cmssst.web.cern.ch/siteStatus/summary.html" style="color:#1a4a6e">Status Summary</a> &nbsp;|&nbsp;
   <a href="https://cmssst.web.cern.ch/sitereadiness/report.html" style="color:#1a4a6e">SR Report</a> &nbsp;|&nbsp;
   <a href="https://helpdesk.ggus.eu" style="color:#1a4a6e">GGUS</a>
+</div>
+
+<div id="drawer-overlay" onclick="closeDrawer()"></div>
+<div id="ticket-drawer">
+  <div id="drawer-header">
+    <span id="drawer-title"></span>
+    <button id="drawer-close" onclick="closeDrawer()" title="Close (Esc)">&times;</button>
+  </div>
+  <div id="drawer-body"></div>
 </div>
 </body>
 </html>"""
