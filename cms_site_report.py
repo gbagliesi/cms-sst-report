@@ -79,6 +79,20 @@ def strip_tags(text):
     return re.sub(r"<[^>]+>", "", text).strip()
 
 
+def linkify(text):
+    """Escape text for HTML and turn URLs into clickable links."""
+    url_re = re.compile(r"(https?://\S+)")
+    parts = url_re.split(text)
+    out = []
+    for i, part in enumerate(parts):
+        if i % 2 == 1:
+            esc = html.escape(part)
+            out.append(f'<a href="{esc}" target="_blank" style="color:#2471a3">{esc}</a>')
+        else:
+            out.append(html.escape(part))
+    return "".join(out)
+
+
 def days_ago(ts_str):
     """Return how many days ago an ISO8601 timestamp was."""
     try:
@@ -656,6 +670,18 @@ function escHtml(s) {{
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }}
 
+function linkifyText(raw) {{
+  var urlRe = /(https?:[/][/][^\\s]+)/g;
+  var parts = String(raw).split(urlRe);
+  return parts.map(function(part, i) {{
+    if (i % 2 === 1) {{
+      var esc = escHtml(part);
+      return '<a href="' + esc + '" target="_blank" style="color:#2471a3">' + esc + '</a>';
+    }}
+    return escHtml(part);
+  }}).join('');
+}}
+
 function renderDrawerTicket(t) {{
   var ageClass = t.days_open > 30 ? 'ticket-old' : (t.days_open > 7 ? 'ticket-week' : 'ticket-new');
   var voBadge = t.is_cms
@@ -674,7 +700,7 @@ function renderDrawerTicket(t) {{
         + '<div class="conv-article-meta">#' + (i+1) + ' ' + label
         + ' &nbsp;|&nbsp; ' + escHtml(art.from)
         + ' &nbsp;|&nbsp; ' + escHtml(art.created_at) + '</div>'
-        + '<div class="conv-article-body">' + escHtml(art.body) + '</div>'
+        + '<div class="conv-article-body">' + linkifyText(art.body) + '</div>'
         + '</div>';
     }});
     convHtml = '<details class="ticket-conv"><summary>Conversation ('
@@ -872,7 +898,7 @@ document.addEventListener('keydown', function(e) {{
                     for i, art in enumerate(articles):
                         sender   = html.escape(art.get("from", "unknown"))
                         art_date = art.get("created_at", "")[:16]
-                        body_e   = html.escape(art.get("body", ""))
+                        body_e   = linkify(art.get("body", ""))
                         label    = "Initial report" if i == 0 else f"Reply {i}"
                         parts.append(
                             f'<div class="conv-article">'
