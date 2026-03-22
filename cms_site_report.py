@@ -397,6 +397,8 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
   .site-name a:hover {{ text-decoration: underline; }}
   .sev-badge   {{ padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; }}
   .site-tier   {{ color: #aaccdd; font-size: 11px; }}
+  .full-report-link {{ font-size: 11px; color: #aaccdd; text-decoration: none; }}
+  .full-report-link:hover {{ color: #ffffff; text-decoration: underline; }}
   .ticket-count {{ margin-left: auto; font-size: 11px; color: #ffd700; }}
 
   .site-body   {{ padding: 12px 14px; background: #ffffff; }}
@@ -698,6 +700,7 @@ window.addEventListener('DOMContentLoaded', function() {{
     </div>
     <span class="site-tier">{tier_str}</span>
     <span class="sev-badge" style="background:{sev_color};color:#fff">{sev_label}</span>
+    <a href="{report_anchor}" target="_blank" class="full-report-link">full report</a>
     <span class="ticket-count">{'&#128190; ' + str(n_tickets) + (' ticket' if n_tickets == 1 else ' tickets') if n_tickets else ''}</span>
   </div>
   <div class="site-body">
@@ -718,10 +721,7 @@ window.addEventListener('DOMContentLoaded', function() {{
             cms_tickets  = sorted([t for t in tickets if t.get("is_cms")],  key=ticket_sort_key, reverse=True)
             wlcg_tickets = sorted([t for t in tickets if not t.get("is_cms")], key=ticket_sort_key, reverse=True)
 
-            html_out += (
-                f'<h3>Open GGUS tickets ({n_tickets}) — '
-                f'<a href="{report_anchor}" target="_blank" style="color:#666">full report</a></h3>'
-            )
+            html_out += f'<h3>Open GGUS tickets ({n_tickets})</h3>'
 
             def render_ticket(t):
                 age_class = ticket_age_class(t["created_at"])
