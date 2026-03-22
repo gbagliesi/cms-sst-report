@@ -765,7 +765,7 @@ window.addEventListener('DOMContentLoaded', function() {{
       <div class="ticket-meta">
         State: <b>{t["state"]}</b> &nbsp;|&nbsp;
         Priority: {t["priority"]} &nbsp;|&nbsp;
-        Opened: {created} ({days_open}d ago) &nbsp;|&nbsp;
+        Opened: {'<span style="color:#cc4400;font-weight:bold">' if days_open > 90 else ''}{created} ({days_open}d ago){'</span>' if days_open > 90 else ''} &nbsp;|&nbsp;
         Updated: {updated}
       </div>
       {conv_html}
