@@ -379,116 +379,118 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
 <title>CMS SST Daily Report — {now_str}</title>
 <style>
   * {{ box-sizing: border-box; }}
-  body {{ font-family: monospace; font-size: 13px; background: #1a1a2e; color: #e0e0e0; margin: 0; padding: 16px; }}
-  h1   {{ color: #a8d8ea; font-size: 18px; margin-bottom: 4px; }}
-  .subtitle {{ color: #888; font-size: 12px; margin-bottom: 24px; }}
-  .summary {{ background: #16213e; border: 1px solid #0f3460; border-radius: 6px;
+  body {{ font-family: monospace; font-size: 13px; background: #f0f4f8; color: #222; margin: 0; padding: 16px; }}
+  h1   {{ color: #1a4a6e; font-size: 18px; margin-bottom: 4px; }}
+  .subtitle {{ color: #555; font-size: 12px; margin-bottom: 24px; }}
+  .summary {{ background: #ffffff; border: 1px solid #c0d0e0; border-radius: 6px;
               padding: 10px 16px; margin-bottom: 20px; display: flex; gap: 24px; }}
   .summary span {{ font-size: 13px; }}
   .badge-err  {{ background: #FF4444; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; }}
   .badge-ok   {{ background: #44BB44; color: #fff; padding: 2px 8px; border-radius: 4px; }}
 
-  .site-block {{ border: 1px solid #0f3460; border-radius: 6px; margin-bottom: 16px;
+  .site-block {{ border: 1px solid #c0d0e0; border-radius: 6px; margin-bottom: 16px;
                  overflow: hidden; }}
   .site-header {{ display: flex; align-items: center; gap: 12px;
-                  padding: 8px 14px; background: #0f3460; }}
-  .site-name   {{ font-size: 15px; font-weight: bold; color: #a8d8ea; }}
+                  padding: 8px 14px; background: #1a4a6e; }}
+  .site-name   {{ font-size: 15px; font-weight: bold; color: #ffffff; }}
   .site-name a {{ color: inherit; text-decoration: none; }}
   .site-name a:hover {{ text-decoration: underline; }}
   .sev-badge   {{ padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; }}
-  .site-tier   {{ color: #888; font-size: 11px; }}
+  .site-tier   {{ color: #aaccdd; font-size: 11px; }}
   .ticket-count {{ margin-left: auto; font-size: 11px; color: #ffd700; }}
 
-  .site-body   {{ padding: 12px 14px; }}
+  .site-body   {{ padding: 12px 14px; background: #ffffff; }}
 
   /* Tabella metriche */
   .metrics-table {{ border-collapse: collapse; margin-bottom: 14px; }}
-  .metrics-table th {{ color: #888; font-weight: normal; font-size: 11px;
+  .metrics-table th {{ color: #666; font-weight: normal; font-size: 11px;
                        text-align: right; padding: 2px 6px; }}
-  .metric-name {{ color: #aaa; padding: 3px 8px 3px 0; white-space: nowrap; min-width: 110px; }}
+  .metric-name {{ color: #555; padding: 3px 8px 3px 0; white-space: nowrap; min-width: 110px; }}
   .metric-cell {{ width: 80px; text-align: center; padding: 4px 6px;
-                  border: 1px solid #333; border-radius: 3px; }}
+                  border: 1px solid #ccc; border-radius: 3px; }}
   .metric-cell a {{ color: #1a1a2e; text-decoration: none; font-weight: bold; font-size: 12px; }}
-  .metric-cell.empty {{ background: #2a2a3e; border-color: #333; color: #555; }}
-  .no-data {{ color: #555; padding: 4px 8px; font-size: 11px; }}
+  .metric-cell.empty {{ background: #e8e8e8; border-color: #ccc; color: #aaa; }}
+  .no-data {{ color: #aaa; padding: 4px 8px; font-size: 11px; }}
 
   /* Ticket GGUS */
-  .tickets-section h3 {{ font-size: 12px; color: #888; margin: 10px 0 6px; border-top: 1px solid #333; padding-top: 8px; }}
-  .ticket {{ background: #16213e; border: 1px solid #0f3460; border-radius: 4px;
+  .tickets-section h3 {{ font-size: 12px; color: #666; margin: 10px 0 6px; border-top: 1px solid #ddd; padding-top: 8px; }}
+  .ticket {{ background: #f8f9fa; border: 1px solid #c0d0e0; border-radius: 4px;
               padding: 8px 12px; margin-bottom: 8px; }}
   .ticket-header {{ display: flex; gap: 10px; align-items: baseline; margin-bottom: 4px; }}
-  .ticket-id   {{ font-weight: bold; color: #a8d8ea; }}
+  .ticket-id   {{ font-weight: bold; color: #1a4a6e; }}
   .ticket-id a {{ color: inherit; }}
-  .ticket-title {{ color: #e0e0e0; }}
+  .ticket-title {{ color: #222; }}
   .ticket-meta  {{ font-size: 11px; color: #777; }}
-  .ticket-body  {{ font-size: 11px; color: #aaa; margin-top: 6px; white-space: pre-wrap;
-                   max-height: 120px; overflow: hidden; border-left: 2px solid #0f3460;
+  .ticket-body  {{ font-size: 11px; color: #555; margin-top: 6px; white-space: pre-wrap;
+                   max-height: 120px; overflow: hidden; border-left: 2px solid #7ab0cc;
                    padding-left: 8px; }}
   .ticket-new  {{ border-left: 3px solid #FF6633; }}
   .ticket-week {{ border-left: 3px solid #FFAA33; }}
-  .ticket-old  {{ border-left: 3px solid #888; }}
+  .ticket-old  {{ border-left: 3px solid #aaa; }}
 
-  .no-tickets {{ color: #555; font-size: 11px; padding: 4px 0; }}
+  .no-tickets {{ color: #aaa; font-size: 11px; padding: 4px 0; }}
 
   .vo-badge {{ font-size: 10px; font-weight: bold; padding: 1px 6px;
                border-radius: 3px; flex-shrink: 0; }}
-  .vo-cms  {{ background: #1a5276; color: #85c1e9; border: 1px solid #2980b9; }}
-  .vo-wlcg {{ background: #1e3a1e; color: #82e0aa; border: 1px solid #239b56; }}
+  .vo-cms  {{ background: #d6eaf8; color: #1a4a6e; border: 1px solid #7ab0cc; }}
+  .vo-wlcg {{ background: #d5f5e3; color: #1e5631; border: 1px solid #58d68d; }}
 
-  details.old-tickets {{ margin-top: 6px; }}
-  details.old-tickets summary {{
-    cursor: pointer; color: #888; font-size: 11px;
-    padding: 4px 8px; background: #1a1a2e; border-radius: 4px;
-    list-style: none; user-select: none;
+  details.ticket-group {{ margin-top: 6px; }}
+  details.ticket-group > summary {{
+    cursor: pointer; color: #1a4a6e; font-size: 12px; font-weight: bold;
+    padding: 4px 8px; background: #e8f0f8; border-radius: 4px;
+    list-style: none; user-select: none; margin-bottom: 4px;
   }}
-  details.old-tickets summary:hover {{ color: #aaa; }}
+  details.ticket-group > summary:hover {{ background: #d6e8f5; }}
+  details.ticket-group > summary::before {{ content: "▶ "; font-size: 9px; }}
+  details.ticket-group[open] > summary::before {{ content: "▼ "; font-size: 9px; }}
 
   .tier-separator {{
     margin: 24px 0 10px; padding: 6px 12px;
-    background: #0a1628; border-left: 3px solid #a8d8ea;
-    color: #a8d8ea; font-size: 13px; font-weight: bold; border-radius: 0 4px 4px 0;
+    background: #e8f0f8; border-left: 3px solid #1a4a6e;
+    color: #1a4a6e; font-size: 13px; font-weight: bold; border-radius: 0 4px 4px 0;
   }}
   .days-ctrl {{
     display: flex; align-items: center; gap: 10px;
     margin-left: auto;
   }}
-  .days-ctrl label {{ color: #aaa; font-size: 12px; }}
+  .days-ctrl label {{ color: #555; font-size: 12px; }}
   .days-ctrl select {{
-    background: #0f3460; color: #e0e0e0; border: 1px solid #a8d8ea;
+    background: #ffffff; color: #222; border: 1px solid #7ab0cc;
     border-radius: 4px; padding: 3px 8px; font-size: 12px; cursor: pointer;
   }}
   .days-ctrl select:focus {{ outline: none; }}
   .filter-ctrl {{
     display: flex; align-items: center; gap: 6px; margin-left: 16px;
-    font-size: 12px; color: #aaa; cursor: pointer; user-select: none;
+    font-size: 12px; color: #555; cursor: pointer; user-select: none;
   }}
-  .filter-ctrl input {{ accent-color: #a8d8ea; cursor: pointer; }}
+  .filter-ctrl input {{ accent-color: #1a4a6e; cursor: pointer; }}
   .site-block.hidden-by-filter {{ display: none; }}
   .site-block.hidden-by-tier   {{ display: none; }}
   .tier-ctrl {{
     display: flex; align-items: center; gap: 10px; margin-left: 16px;
-    font-size: 12px; color: #aaa;
+    font-size: 12px; color: #555;
   }}
-  .tier-ctrl span {{ color: #888; }}
+  .tier-ctrl span {{ color: #666; }}
   .tier-btn {{
     display: inline-flex; align-items: center; gap: 4px;
     cursor: pointer; user-select: none;
   }}
-  .tier-btn input {{ accent-color: #a8d8ea; cursor: pointer; }}
+  .tier-btn input {{ accent-color: #1a4a6e; cursor: pointer; }}
 
   /* Ticket conversation */
   details.ticket-conv {{ margin-top: 6px; }}
   details.ticket-conv > summary {{
-    cursor: pointer; font-size: 11px; color: #6a9fb5; list-style: none;
+    cursor: pointer; font-size: 11px; color: #2471a3; list-style: none;
     padding: 2px 0; user-select: none;
   }}
-  details.ticket-conv > summary:hover {{ color: #a8d8ea; }}
+  details.ticket-conv > summary:hover {{ color: #1a4a6e; }}
   details.ticket-conv > summary::before {{ content: "▶ "; font-size: 9px; }}
   details.ticket-conv[open] > summary::before {{ content: "▼ "; font-size: 9px; }}
-  .conv-article {{ margin-top: 8px; padding: 6px 10px; background: #0d1b2e;
-                   border-left: 2px solid #1e4d6b; border-radius: 0 4px 4px 0; }}
-  .conv-article-meta {{ font-size: 10px; color: #666; margin-bottom: 4px; }}
-  .conv-article-body {{ font-size: 11px; color: #aaa; white-space: pre-wrap;
+  .conv-article {{ margin-top: 8px; padding: 6px 10px; background: #e8f4ff;
+                   border-left: 2px solid #7ab0cc; border-radius: 0 4px 4px 0; }}
+  .conv-article-meta {{ font-size: 10px; color: #888; margin-bottom: 4px; }}
+  .conv-article-body {{ font-size: 11px; color: #444; white-space: pre-wrap;
                         max-height: 200px; overflow-y: auto; }}
 </style>
 <script>
@@ -565,13 +567,20 @@ function applyFilters() {{
     sep.style.display = anyVisible ? '' : 'none';
   }});
 
+  // count sites in selected tiers (regardless of error/ok filter)
+  var tierCount = 0;
+  document.querySelectorAll('.site-block').forEach(function(block) {{
+    var tier = block.getAttribute('data-tier');
+    if (activeTiers[tier]) tierCount++;
+  }});
+
   // update counters
   var elShown  = document.getElementById('cnt-shown');
   var elErr    = document.getElementById('cnt-err');
   var elTotal  = document.getElementById('cnt-total');
   if (elShown) elShown.textContent = shownCount;
   if (elErr)   elErr.textContent   = shownErrors;
-  if (elTotal) elTotal.textContent = document.querySelectorAll('.site-block').length;
+  if (elTotal) elTotal.textContent = tierCount;
 }}
 
 function doRefresh() {{
@@ -617,11 +626,11 @@ window.addEventListener('DOMContentLoaded', function() {{
 <h1>&#9888; CMS SST — Daily Site Report</h1>
 <div class="subtitle" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
   <span>Generated: {now_str} &nbsp;|&nbsp;
-    Source: <a href="{REPORT_URL}" target="_blank" style="color:#a8d8ea">sitereadiness/report.html</a> +
-    <a href="https://helpdesk.ggus.eu" target="_blank" style="color:#a8d8ea">GGUS</a>
+    Source: <a href="https://cmssst.web.cern.ch/siteStatus/summary.html" target="_blank" style="color:#1a4a6e">siteStatus/summary.html</a> +
+    <a href="https://helpdesk.ggus.eu" target="_blank" style="color:#1a4a6e">GGUS</a>
   </span>
   <button id="refresh-btn" onclick="doRefresh()" title="Refresh data (local) or open GitHub Actions (GitHub Pages)"
-    style="background:#0f3460;color:#a8d8ea;border:1px solid #a8d8ea;border-radius:4px;
+    style="background:#ffffff;color:#1a4a6e;border:1px solid #1a4a6e;border-radius:4px;
            padding:2px 10px;cursor:pointer;font-size:14px;margin-left:4px;">&#8635;</button>
   <div class="days-ctrl">
     <label>Window:</label>
@@ -648,10 +657,10 @@ window.addEventListener('DOMContentLoaded', function() {{
 <div class="summary">
   <span>Shown: <span class="badge-err" id="cnt-shown">{n_errors}</span></span>
   <span>&#128308; With errors: <span id="cnt-err">{n_errors}</span></span>
-  <span>Total sites: <span id="cnt-total">{n_total}</span></span>
+  <span>Total selected sites: <span id="cnt-total">{n_total}</span></span>
 </div>
 
-<p style="color:#888;font-size:11px;margin-bottom:16px">
+<p style="color:#666;font-size:11px;margin-bottom:16px">
   Metric columns = last <span id="days-label">{problem_days} days</span> (oldest &#8594; most recent).<br>
   Click a cell for the SAM/HC/FTS log. Click a site name for the full readiness report.
   &#8635; refreshes data locally or opens GitHub Actions on the public page.
@@ -678,8 +687,8 @@ window.addEventListener('DOMContentLoaded', function() {{
         if this_tier != current_tier:
             current_tier = this_tier
             html_out += f'<div class="tier-separator">Tier-{current_tier}</div>\n'
-        summary_url = f"https://cmssst.web.cern.ch/siteStatus/summary.html#{site_name}"
-        report_anchor = f"https://cmssst.web.cern.ch/sitereadiness/report.html#{site_name}"
+        summary_url = f"https://cmssst.web.cern.ch/sitereadiness/report.html#{site_name}"
+        report_anchor = f"https://cmssst.web.cern.ch/siteStatus/detail.html?site={site_name}"
 
         html_out += f"""
 <div class="site-block" data-tier="{this_tier}" data-severity="{sev}">
@@ -700,20 +709,18 @@ window.addEventListener('DOMContentLoaded', function() {{
     </table>
 """
 
-        # Tickets section — sort by date desc, group old ones (>90 days)
+        # Tickets section — CMS tickets expanded, WLCG collapsed
         html_out += '<div class="tickets-section">'
         if tickets:
-                    # Sort: CMS VO first, then WLCG; within each group: date descending
-            # With reverse=True: (1, "2026-03-20") > (0, ...) → CMS (1) comes first
+            # Sort within each group by date descending
             def ticket_sort_key(t):
-                return (1 if t.get("is_cms") else 0, t["created_at"])
-            tickets_sorted = sorted(tickets, key=ticket_sort_key, reverse=True)
-            recent = [t for t in tickets_sorted if days_ago(t["created_at"]) <= 90]
-            old    = [t for t in tickets_sorted if days_ago(t["created_at"]) > 90]
+                return t["created_at"]
+            cms_tickets  = sorted([t for t in tickets if t.get("is_cms")],  key=ticket_sort_key, reverse=True)
+            wlcg_tickets = sorted([t for t in tickets if not t.get("is_cms")], key=ticket_sort_key, reverse=True)
 
             html_out += (
                 f'<h3>Open GGUS tickets ({n_tickets}) — '
-                f'<a href="{report_anchor}" target="_blank" style="color:#888">full report</a></h3>'
+                f'<a href="{report_anchor}" target="_blank" style="color:#666">full report</a></h3>'
             )
 
             def render_ticket(t):
@@ -764,28 +771,28 @@ window.addEventListener('DOMContentLoaded', function() {{
       {conv_html}
     </div>"""
 
-            for t in recent:
-                html_out += render_ticket(t)
-
-            if old:
-                old_id = f"old_{site_name.replace(' ', '_')}"
-                html_out += f"""
-    <details class="old-tickets">
-      <summary>&#9660; {len(old)} ticket{'s' if len(old) != 1 else ''} older than 90 days</summary>"""
-                for t in old:
+            if cms_tickets:
+                html_out += f'<details class="ticket-group" open><summary>CMS tickets ({len(cms_tickets)})</summary>'
+                for t in cms_tickets:
                     html_out += render_ticket(t)
-                html_out += "\n    </details>"
+                html_out += "\n</details>"
+
+            if wlcg_tickets:
+                html_out += f'<details class="ticket-group"><summary>WLCG tickets ({len(wlcg_tickets)})</summary>'
+                for t in wlcg_tickets:
+                    html_out += render_ticket(t)
+                html_out += "\n</details>"
         else:
             html_out += '<p class="no-tickets">No open GGUS tickets</p>'
 
         html_out += "</div></div></div>\n"
 
     html_out += """
-<div style="margin-top:30px;font-size:11px;color:#555;border-top:1px solid #333;padding-top:12px">
+<div style="margin-top:30px;font-size:11px;color:#888;border-top:1px solid #ccc;padding-top:12px">
   CMS Site Support Team &nbsp;|&nbsp;
-  <a href="https://cmssst.web.cern.ch/siteStatus/summary.html" style="color:#888">Status Summary</a> &nbsp;|&nbsp;
-  <a href="https://cmssst.web.cern.ch/sitereadiness/report.html" style="color:#888">SR Report</a> &nbsp;|&nbsp;
-  <a href="https://helpdesk.ggus.eu" style="color:#888">GGUS</a>
+  <a href="https://cmssst.web.cern.ch/siteStatus/summary.html" style="color:#1a4a6e">Status Summary</a> &nbsp;|&nbsp;
+  <a href="https://cmssst.web.cern.ch/sitereadiness/report.html" style="color:#1a4a6e">SR Report</a> &nbsp;|&nbsp;
+  <a href="https://helpdesk.ggus.eu" style="color:#1a4a6e">GGUS</a>
 </div>
 </body>
 </html>"""
