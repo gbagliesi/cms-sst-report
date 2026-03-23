@@ -597,6 +597,8 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all, trigger_toke
   .tstat-link:hover {{ color: #ffffff; }}
 </style>
 <script>
+var cmsFilterSave = null;
+
 function applyFilters() {{
   var n       = parseInt(document.getElementById('days-sel').value);
   var chkErr  = document.getElementById('filter-errors').checked;
@@ -663,12 +665,18 @@ function applyFilters() {{
       block.classList.remove('hidden-by-ssb');
       if (match) {{ shownCount++; if (hasError) shownErrors++; }}
     }} else if (chkCmsTickets) {{
-      // CMS tickets mode: show all sites with open CMS tickets, ignore tier/SSB/error filters
+      // CMS tickets mode: base = hasCmsTickets, then apply tier/SSB/error on top
       block.classList.remove('hidden-by-search');
       block.classList.remove('hidden-by-tier');
       block.classList.remove('hidden-by-ssb');
-      block.classList.toggle('hidden-by-filter', !hasCmsTickets);
-      if (hasCmsTickets) {{ shownCount++; if (hasError) shownErrors++; }}
+      var tier = block.getAttribute('data-tier');
+      var tierOk = activeTiers[tier];
+      var passFilter;
+      if (!chkErr && !chkOk) {{ passFilter = true; }}
+      else {{ passFilter = (chkErr && hasError) || (chkOk && !hasError); }}
+      var visible = hasCmsTickets && tierOk && ssbOk && passFilter;
+      block.classList.toggle('hidden-by-filter', !visible);
+      if (visible) {{ shownCount++; if (hasError) shownErrors++; }}
     }} else {{
       // normal mode
       block.classList.remove('hidden-by-search');
@@ -689,7 +697,7 @@ function applyFilters() {{
 
   // hide tier separators
   document.querySelectorAll('.tier-separator').forEach(function(sep) {{
-    if (searchActive || chkCmsTickets) {{ sep.style.display = 'none'; return; }}
+    if (searchActive) {{ sep.style.display = 'none'; return; }}
     var next = sep.nextElementSibling;
     var anyVisible = false;
     while (next && !next.classList.contains('tier-separator')) {{
@@ -706,7 +714,7 @@ function applyFilters() {{
 
   // total count
   var tierCount;
-  if (searchActive) {{
+  if (searchActive || chkCmsTickets) {{
     tierCount = shownCount;
   }} else {{
     tierCount = 0;
@@ -833,7 +841,35 @@ window.addEventListener('DOMContentLoaded', function() {{
   document.getElementById('filter-errors').addEventListener('change', applyFilters);
   document.getElementById('filter-ok').addEventListener('change', applyFilters);
   document.getElementById('ssb-sel').addEventListener('change', applyFilters);
-  document.getElementById('filter-cms-tickets').addEventListener('change', applyFilters);
+  document.getElementById('filter-cms-tickets').addEventListener('change', function() {{
+    if (this.checked) {{
+      // Save current filter state and reset to neutral
+      cmsFilterSave = {{
+        t1:  document.querySelector('.tier-chk[value="1"]').checked,
+        t2:  document.querySelector('.tier-chk[value="2"]').checked,
+        t3:  document.querySelector('.tier-chk[value="3"]').checked,
+        ssb: document.getElementById('ssb-sel').value,
+        err: document.getElementById('filter-errors').checked,
+        ok:  document.getElementById('filter-ok').checked,
+      }};
+      document.querySelectorAll('.tier-chk').forEach(function(cb) {{ cb.checked = true; }});
+      document.getElementById('ssb-sel').value = 'all';
+      document.getElementById('filter-errors').checked = false;
+      document.getElementById('filter-ok').checked  = false;
+    }} else {{
+      // Restore saved filter state
+      if (cmsFilterSave) {{
+        document.querySelector('.tier-chk[value="1"]').checked = cmsFilterSave.t1;
+        document.querySelector('.tier-chk[value="2"]').checked = cmsFilterSave.t2;
+        document.querySelector('.tier-chk[value="3"]').checked = cmsFilterSave.t3;
+        document.getElementById('ssb-sel').value = cmsFilterSave.ssb;
+        document.getElementById('filter-errors').checked = cmsFilterSave.err;
+        document.getElementById('filter-ok').checked  = cmsFilterSave.ok;
+        cmsFilterSave = null;
+      }}
+    }}
+    applyFilters();
+  }});
   document.getElementById('site-search').addEventListener('input', applyFilters);
   document.querySelectorAll('.tier-chk').forEach(function(cb) {{
     cb.addEventListener('change', applyFilters);
@@ -966,7 +1002,7 @@ document.addEventListener('keydown', function(e) {{
   </div>
   <label class="filter-ctrl">
     <input type="checkbox" id="filter-cms-tickets">
-    CMS tickets <span style="font-size:10px;color:#888">(filters ignored)</span>
+    CMS tickets
   </label>
   <div class="site-search-wrap">
     <input type="text" id="site-search" placeholder="&#128269; Search site or ticket number..." autocomplete="off" spellcheck="false">
