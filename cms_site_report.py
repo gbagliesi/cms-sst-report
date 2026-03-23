@@ -53,6 +53,16 @@ COLOR_LABELS = {
     COLOR_ADHOC:    ("adhoc",    "adhoc"),
 }
 
+# SSB badge: background and text colors matching CERN cmssst color scheme
+SSB_BADGE_COLORS = {
+    "ok":       (COLOR_OK,       "#1a3a1a"),
+    "warning":  (COLOR_WARNING,  "#333300"),
+    "error":    (COLOR_ERROR,    "#ffffff"),
+    "downtime": (COLOR_DOWNTIME, "#ffffff"),
+    "partial":  (COLOR_PDTIME,   "#ffffff"),
+    "adhoc":    (COLOR_ADHOC,    "#ffffff"),
+}
+
 STATUS_SEVERITY = {"error": 3, "partial": 2, "adhoc": 2, "warning": 1,
                    "downtime": 1, "ok": 0, "unknown": 0}
 
@@ -141,12 +151,14 @@ def parse_report(content, problem_days=MAX_DAYS):
             block = block[:next_site]
 
         site_data = {
-            "dates":    [],
-            "SAM":      [],
-            "HC":       [],
-            "FTS":      [],
-            "ggus_old": [],
+            "dates":      [],
+            "SAM":        [],
+            "HC":         [],
+            "FTS":        [],
+            "ggus_old":   [],
             "max_severity": 0,
+            "ssb_status": None,
+            "ssb_color":  "",
         }
 
         # --- Legacy GGUS tickets (ggus.eu links) ---
@@ -198,6 +210,31 @@ def parse_report(content, problem_days=MAX_DAYS):
                 sev = STATUS_SEVERITY.get(status, 0)
                 if sev > site_data["max_severity"]:
                     site_data["max_severity"] = sev
+
+        # --- SSB status: derived from the most recent day's SAM/HC/FTS cells ---
+        # This mirrors how CERN's Site Readiness aggregates the three metrics.
+        recent = []
+        for key in ("SAM", "HC", "FTS"):
+            cells = site_data[key]
+            if cells:
+                recent.append(cells[-1]["status"])  # cells are oldest→newest
+        if recent:
+            if "error" in recent:
+                ssb = "error"
+            elif "partial" in recent or "adhoc" in recent:
+                ssb = "partial" if "partial" in recent else "adhoc"
+            elif "warning" in recent:
+                ssb = "warning"
+            elif all(s == "downtime" for s in recent):
+                ssb = "downtime"
+            elif any(s == "downtime" for s in recent):
+                ssb = "partial"
+            elif all(s == "ok" for s in recent):
+                ssb = "ok"
+            else:
+                ssb = None
+            site_data["ssb_status"] = ssb
+            site_data["ssb_color"]  = SSB_BADGE_COLORS.get(ssb, ("", ""))[0] if ssb else ""
 
         sites[site_name] = site_data
 
@@ -411,6 +448,8 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
   .site-name a {{ color: inherit; text-decoration: none; }}
   .site-name a:hover {{ text-decoration: underline; }}
   .sev-badge   {{ padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; }}
+  .ssb-badge   {{ padding: 1px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;
+                  border: 1px solid rgba(0,0,0,0.15); white-space: nowrap; }}
   .site-tier   {{ color: #aaccdd; font-size: 11px; }}
   .full-report-link {{ font-size: 11px; color: #aaccdd; text-decoration: none; }}
   .full-report-link:hover {{ color: #ffffff; text-decoration: underline; }}
@@ -884,6 +923,14 @@ document.addEventListener('keydown', function(e) {{
         else:
             ticket_stat = ''
 
+        ssb_status = data.get("ssb_status")
+        ssb_color  = data.get("ssb_color", "")
+        if ssb_status and ssb_status != "unknown":
+            ssb_bg, ssb_fg = SSB_BADGE_COLORS.get(ssb_status, ("#cccccc", "#555555"))
+            ssb_badge = f'<span class="ssb-badge" style="background:{ssb_bg};color:{ssb_fg}" title="SSB Site Readiness">SSB: {ssb_status}</span>'
+        else:
+            ssb_badge = ''
+
         html_out += f"""
 <div class="site-block" data-tier="{this_tier}" data-severity="{sev}" data-site="{site_name}">
   <div class="site-header">
@@ -892,6 +939,7 @@ document.addEventListener('keydown', function(e) {{
     </div>
     <span class="site-tier">{tier_str}</span>
     <span class="sev-badge" style="background:{sev_color};color:#fff">{sev_label}</span>
+    {ssb_badge}
     <a href="{report_anchor}" target="_blank" class="full-report-link">full report</a>
     <span class="ticket-count">{ticket_stat}</span>
   </div>
