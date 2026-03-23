@@ -886,7 +886,7 @@ document.addEventListener('keydown', function(e) {{
   </div>
   <label class="filter-ctrl">
     <input type="checkbox" id="filter-cms-tickets">
-    CMS tickets
+    CMS tickets <span style="font-size:10px;color:#888">(filters ignored)</span>
   </label>
   <div class="site-search-wrap">
     <input type="text" id="site-search" placeholder="&#128269; Search site..." autocomplete="off" spellcheck="false">
