@@ -786,8 +786,10 @@ function doRefresh(auto) {{
     window.open('https://github.com/' + GH_REPO + '/actions', '_blank');
   }}
 }}
-// Auto-refresh every 10 minutes (detects new tickets, closed tickets, and updates)
-setInterval(function() {{ doRefresh(true); }}, 600000);
+// Auto-refresh every 10 minutes — local server only (hash-based change detection)
+if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {{
+  setInterval(function() {{ doRefresh(true); }}, 600000);
+}}
 
 window.addEventListener('DOMContentLoaded', function() {{
   document.getElementById('days-sel').addEventListener('change', applyFilters);
