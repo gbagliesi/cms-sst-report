@@ -724,12 +724,16 @@ function applyFilters() {{
 var TRIGGER_TOKEN = "{trigger_token}";
 var GH_REPO       = "gbagliesi/cms-sst-report";
 var GH_WORKFLOW   = "ggus_watcher.yml";
+var BUILD_TIME    = "{now_str}";
+var lastDispatch  = 0;
+var THROTTLE_MS   = 600000; // 10 minutes
 
 function doRefresh(auto) {{
   var btn = document.getElementById('refresh-btn');
   var isLocal = window.location.hostname === 'localhost' ||
                 window.location.hostname === '127.0.0.1';
   if (isLocal) {{
+    // --- Local server: regenerate and reload only if changed ---
     btn.textContent = '⟳';
     btn.title = 'Refreshing...';
     btn.disabled = true;
@@ -754,42 +758,72 @@ function doRefresh(auto) {{
         btn.disabled = false;
         btn.title = 'Server not reachable (run cms_local_server.py)';
       }});
-  }} else if (TRIGGER_TOKEN) {{
-    btn.textContent = '⟳';
-    btn.title = 'Triggering rebuild...';
-    btn.disabled = true;
-    fetch('https://api.github.com/repos/' + GH_REPO + '/actions/workflows/' + GH_WORKFLOW + '/dispatches', {{
-      method: 'POST',
-      headers: {{
-        'Authorization': 'Bearer ' + TRIGGER_TOKEN,
-        'Accept':        'application/vnd.github+json',
-        'Content-Type':  'application/json',
-      }},
-      body: JSON.stringify({{ ref: 'main' }}),
-    }})
-    .then(function(r) {{
-      if (r.status === 204) {{
-        btn.title = 'Rebuild triggered — reloading in ~90s';
-        setTimeout(function() {{ location.reload(); }}, 90000);
-      }} else {{
+  }} else {{
+    // --- GitHub Pages ---
+    if (!auto) {{
+      // Manual button: throttle if auto-check ran recently
+      if (Date.now() - lastDispatch < THROTTLE_MS) {{
+        var remaining = Math.ceil((THROTTLE_MS - (Date.now() - lastDispatch)) / 60000);
+        btn.title = 'Auto-check ran recently — try again in ~' + remaining + ' min';
+        return;
+      }}
+      if (!TRIGGER_TOKEN) {{
+        window.open('https://github.com/' + GH_REPO + '/actions', '_blank');
+        return;
+      }}
+      btn.textContent = '⟳';
+      btn.title = 'Triggering rebuild...';
+      btn.disabled = true;
+      lastDispatch = Date.now();
+      fetch('https://api.github.com/repos/' + GH_REPO + '/actions/workflows/' + GH_WORKFLOW + '/dispatches', {{
+        method: 'POST',
+        headers: {{
+          'Authorization': 'Bearer ' + TRIGGER_TOKEN,
+          'Accept':        'application/vnd.github+json',
+          'Content-Type':  'application/json',
+        }},
+        body: JSON.stringify({{ ref: 'main' }}),
+      }})
+      .then(function(r) {{
+        if (r.status === 204) {{
+          btn.title = 'Rebuild triggered — reloading in ~90s';
+          setTimeout(function() {{ location.reload(); }}, 90000);
+        }} else {{
+          btn.disabled = false;
+          btn.textContent = '⟳';
+          btn.title = 'Trigger failed (HTTP ' + r.status + ')';
+        }}
+      }})
+      .catch(function() {{
         btn.disabled = false;
         btn.textContent = '⟳';
-        btn.title = 'Trigger failed (HTTP ' + r.status + ')';
-      }}
-    }})
-    .catch(function() {{
-      btn.disabled = false;
-      btn.textContent = '⟳';
-      btn.title = 'Trigger failed (network error)';
-    }});
-  }} else {{
-    window.open('https://github.com/' + GH_REPO + '/actions', '_blank');
+        btn.title = 'Trigger failed (network error)';
+      }});
+    }}
   }}
 }}
-// Auto-refresh every 10 minutes — local server only (hash-based change detection)
-if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {{
-  setInterval(function() {{ doRefresh(true); }}, 600000);
-}}
+
+// Auto-refresh every 10 minutes:
+// - Local: regenerate report, reload if changed
+// - GitHub Pages: fetch page, compare BUILD_TIME, reload if updated
+(function() {{
+  var isLocal = window.location.hostname === 'localhost' ||
+                window.location.hostname === '127.0.0.1';
+  setInterval(function() {{
+    if (isLocal) {{
+      doRefresh(true);
+    }} else {{
+      lastDispatch = Date.now();
+      fetch(location.href, {{ cache: 'no-cache' }})
+        .then(function(r) {{ return r.text(); }})
+        .then(function(html) {{
+          var m = html.match(/var BUILD_TIME\s*=\s*"([^"]+)"/);
+          if (m && m[1] !== BUILD_TIME) {{ location.reload(); }}
+        }})
+        .catch(function() {{}});
+    }}
+  }}, THROTTLE_MS);
+}})();
 
 window.addEventListener('DOMContentLoaded', function() {{
   document.getElementById('days-sel').addEventListener('change', applyFilters);
