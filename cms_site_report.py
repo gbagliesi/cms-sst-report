@@ -651,9 +651,12 @@ function applyFilters() {{
     var hasCmsTickets = block.getAttribute('data-cms-tickets') === '1';
 
     if (searchActive) {{
-      // search mode: ignore all other filters, match by site name
-      var siteName = (block.getAttribute('data-site') || '').toLowerCase();
-      var match = siteName.includes(search);
+      // search mode: ignore all other filters, match by site name or ticket number
+      var siteName   = (block.getAttribute('data-site') || '').toLowerCase();
+      var ticketNums = (block.getAttribute('data-ticket-nums') || '');
+      var isTicketSearch = /\d{{3}}/.test(search);
+      var match = siteName.includes(search) ||
+                  (isTicketSearch && ticketNums.split(' ').some(function(n) {{ return n.includes(search); }}));
       block.classList.toggle('hidden-by-search', !match);
       block.classList.remove('hidden-by-tier');
       block.classList.remove('hidden-by-filter');
@@ -966,7 +969,7 @@ document.addEventListener('keydown', function(e) {{
     CMS tickets <span style="font-size:10px;color:#888">(filters ignored)</span>
   </label>
   <div class="site-search-wrap">
-    <input type="text" id="site-search" placeholder="&#128269; Search site..." autocomplete="off" spellcheck="false">
+    <input type="text" id="site-search" placeholder="&#128269; Search site or ticket number..." autocomplete="off" spellcheck="false">
     <span id="search-hint" style="display:none"></span>
   </div>
 </div>
@@ -1031,6 +1034,7 @@ document.addEventListener('keydown', function(e) {{
 
         n_cms  = sum(1 for t in tickets if t.get("is_cms"))
         n_wlcg = n_tickets - n_cms
+        ticket_nums = " ".join(str(t.get("number", "")) for t in tickets if t.get("number"))
         n_old  = sum(1 for t in tickets if days_ago(t["created_at"]) > 90)
         if n_tickets:
             sn_js = site_name.replace("'", "\\'")
@@ -1051,7 +1055,7 @@ document.addEventListener('keydown', function(e) {{
             ssb_badge = ''
 
         html_out += f"""
-<div class="site-block" data-tier="{this_tier}" data-severity="{sev}" data-site="{site_name}" data-ssb="{ssb_status or 'ok'}" data-cms-tickets="{1 if n_cms else 0}">
+<div class="site-block" data-tier="{this_tier}" data-severity="{sev}" data-site="{site_name}" data-ssb="{ssb_status or 'ok'}" data-cms-tickets="{1 if n_cms else 0}" data-ticket-nums="{ticket_nums}">
   <div class="site-header">
     <div class="site-name">
       <a href="{summary_url}" target="_blank">{site_name}</a>
