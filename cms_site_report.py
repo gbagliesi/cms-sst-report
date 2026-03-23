@@ -53,14 +53,19 @@ COLOR_LABELS = {
     COLOR_ADHOC:    ("adhoc",    "adhoc"),
 }
 
-# SSB badge: background and text colors matching CERN cmssst color scheme
+# SSB badge: the 4 CMS SSB administrative site states and their display colors.
+# Colors match the CERN cmssst.web.cern.ch color scheme.
 SSB_BADGE_COLORS = {
-    "ok":       (COLOR_OK,       "#1a3a1a"),
-    "warning":  (COLOR_WARNING,  "#333300"),
-    "error":    (COLOR_ERROR,    "#ffffff"),
-    "downtime": (COLOR_DOWNTIME, "#ffffff"),
-    "partial":  (COLOR_PDTIME,   "#ffffff"),
-    "adhoc":    (COLOR_ADHOC,    "#ffffff"),
+    "ok":           (COLOR_OK,       "#1a3a1a"),   # green
+    "waiting_room": (COLOR_WARNING,  "#333300"),   # yellow (site not yet in production)
+    "morgue":       ("#808080",      "#ffffff"),   # grey  (site decommissioned)
+    "downtime":     (COLOR_DOWNTIME, "#ffffff"),   # blue  (scheduled downtime)
+}
+SSB_BADGE_LABELS = {
+    "ok":           "ok",
+    "waiting_room": "waiting room",
+    "morgue":       "morgue",
+    "downtime":     "downtime",
 }
 
 STATUS_SEVERITY = {"error": 3, "partial": 2, "adhoc": 2, "warning": 1,
@@ -211,30 +216,40 @@ def parse_report(content, problem_days=MAX_DAYS):
                 if sev > site_data["max_severity"]:
                     site_data["max_severity"] = sev
 
-        # --- SSB status: derived from the most recent day's SAM/HC/FTS cells ---
-        # This mirrors how CERN's Site Readiness aggregates the three metrics.
-        recent = []
-        for key in ("SAM", "HC", "FTS"):
-            cells = site_data[key]
-            if cells:
-                recent.append(cells[-1]["status"])  # cells are oldest→newest
-        if recent:
-            if "error" in recent:
-                ssb = "error"
-            elif "partial" in recent or "adhoc" in recent:
-                ssb = "partial" if "partial" in recent else "adhoc"
-            elif "warning" in recent:
-                ssb = "warning"
-            elif all(s == "downtime" for s in recent):
-                ssb = "downtime"
-            elif any(s == "downtime" for s in recent):
-                ssb = "partial"
-            elif all(s == "ok" for s in recent):
-                ssb = "ok"
+        # --- SSB administrative state (ok / waiting_room / morgue / downtime) ---
+        # The report.html legend shows "WR" for waiting_room and "Morgue" for morgue
+        # in the Site Readiness row text. Downtime is detected from metric cells.
+        ssb = "ok"  # default: site is in production
+
+        sr_idx = block.find("Site Readiness:")
+        if sr_idx >= 0:
+            row_end = block.find("<TR", sr_idx + 10)
+            row_html = block[sr_idx:row_end] if row_end > 0 else block[sr_idx:sr_idx + 4000]
+            # Strip tags and normalise whitespace for text matching
+            sr_text = re.sub(r"<[^>]+>", " ", row_html)
+            sr_text = re.sub(r"\s+", " ", sr_text).strip()
+            if re.search(r"\bWR\b", sr_text):
+                ssb = "waiting_room"
+            elif re.search(r"\bMorgue\b", sr_text, re.IGNORECASE):
+                ssb = "morgue"
             else:
-                ssb = None
-            site_data["ssb_status"] = ssb
-            site_data["ssb_color"]  = SSB_BADGE_COLORS.get(ssb, ("", ""))[0] if ssb else ""
+                # Check if most recent colored cell in the row indicates downtime
+                sr_cells = cell_pattern.findall(row_html)
+                if sr_cells and cell_status(sr_cells[-1][0]) == "downtime":
+                    ssb = "downtime"
+
+        if ssb == "ok":
+            # Fallback: if ALL recent metric cells are downtime, treat as downtime
+            recent = [
+                cells[-1]["status"]
+                for key in ("SAM", "HC", "FTS")
+                for cells in [site_data[key]] if cells
+            ]
+            if recent and all(s == "downtime" for s in recent):
+                ssb = "downtime"
+
+        site_data["ssb_status"] = ssb
+        site_data["ssb_color"]  = SSB_BADGE_COLORS.get(ssb, ("", ""))[0]
 
         sites[site_name] = site_data
 
@@ -924,10 +939,11 @@ document.addEventListener('keydown', function(e) {{
             ticket_stat = ''
 
         ssb_status = data.get("ssb_status")
-        ssb_color  = data.get("ssb_color", "")
-        if ssb_status and ssb_status != "unknown":
-            ssb_bg, ssb_fg = SSB_BADGE_COLORS.get(ssb_status, ("#cccccc", "#555555"))
-            ssb_badge = f'<span class="ssb-badge" style="background:{ssb_bg};color:{ssb_fg}" title="SSB Site Readiness">SSB: {ssb_status}</span>'
+        if ssb_status and ssb_status in SSB_BADGE_COLORS:
+            ssb_bg, ssb_fg = SSB_BADGE_COLORS[ssb_status]
+            ssb_label = SSB_BADGE_LABELS[ssb_status]
+            ssb_badge = (f'<span class="ssb-badge" style="background:{ssb_bg};color:{ssb_fg}"'
+                         f' title="SSB site state">SSB: {ssb_label}</span>')
         else:
             ssb_badge = ''
 
