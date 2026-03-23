@@ -33,7 +33,8 @@ jobs:
 
       - name: Generate report
         env:
-          GGUS_TOKEN: ${{ secrets.GGUS_TOKEN }}
+          GGUS_TOKEN:     ${{ secrets.GGUS_TOKEN }}
+          TRIGGER_TOKEN:  ${{ secrets.TRIGGER_TOKEN }}
         run: |
           python3 cms_site_report.py \
             --days 3 \

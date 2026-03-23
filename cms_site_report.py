@@ -411,7 +411,7 @@ def ticket_age_class(created_at):
     return "ticket-new"
 
 
-def generate_html(sites_data, ggus_by_site, problem_days, show_all):
+def generate_html(sites_data, ggus_by_site, problem_days, show_all, trigger_token=""):
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     def tier_num(site):
@@ -721,6 +721,10 @@ function applyFilters() {{
   if (elTotal) elTotal.textContent = tierCount;
 }}
 
+var TRIGGER_TOKEN = "{trigger_token}";
+var GH_REPO       = "gbagliesi/cms-sst-report";
+var GH_WORKFLOW   = "ggus_watcher.yml";
+
 function doRefresh(auto) {{
   var btn = document.getElementById('refresh-btn');
   var isLocal = window.location.hostname === 'localhost' ||
@@ -750,8 +754,36 @@ function doRefresh(auto) {{
         btn.disabled = false;
         btn.title = 'Server not reachable (run cms_local_server.py)';
       }});
+  }} else if (TRIGGER_TOKEN) {{
+    btn.textContent = '⟳';
+    btn.title = 'Triggering rebuild...';
+    btn.disabled = true;
+    fetch('https://api.github.com/repos/' + GH_REPO + '/actions/workflows/' + GH_WORKFLOW + '/dispatches', {{
+      method: 'POST',
+      headers: {{
+        'Authorization': 'Bearer ' + TRIGGER_TOKEN,
+        'Accept':        'application/vnd.github+json',
+        'Content-Type':  'application/json',
+      }},
+      body: JSON.stringify({{ ref: 'main' }}),
+    }})
+    .then(function(r) {{
+      if (r.status === 204) {{
+        btn.title = 'Rebuild triggered — reloading in ~90s';
+        setTimeout(function() {{ location.reload(); }}, 90000);
+      }} else {{
+        btn.disabled = false;
+        btn.textContent = '⟳';
+        btn.title = 'Trigger failed (HTTP ' + r.status + ')';
+      }}
+    }})
+    .catch(function() {{
+      btn.disabled = false;
+      btn.textContent = '⟳';
+      btn.title = 'Trigger failed (network error)';
+    }});
   }} else {{
-    window.open('https://github.com/gbagliesi/cms-sst-report/actions', '_blank');
+    window.open('https://github.com/' + GH_REPO + '/actions', '_blank');
   }}
 }}
 // Auto-refresh every 10 minutes (detects new tickets, closed tickets, and updates)
@@ -1156,7 +1188,8 @@ def main():
 
     # --- Generate HTML ---
     print("Generating report...", file=sys.stderr)
-    out_html = generate_html(sites_data, ggus_by_site, args.days, args.show_all)
+    trigger_token = os.environ.get("TRIGGER_TOKEN", "")
+    out_html = generate_html(sites_data, ggus_by_site, args.days, args.show_all, trigger_token)
 
     out_path = Path(args.out)
     out_path.write_text(out_html, encoding="utf-8")
