@@ -56,10 +56,10 @@ COLOR_LABELS = {
 # SSB badge: the 4 CMS SSB administrative site states and their display colors.
 # Colors match the CERN cmssst.web.cern.ch color scheme.
 SSB_BADGE_COLORS = {
-    "ok":           (COLOR_OK,       "#1a3a1a"),   # green
-    "waiting_room": (COLOR_WARNING,  "#333300"),   # yellow (site not yet in production)
-    "morgue":       ("#808080",      "#ffffff"),   # grey  (site decommissioned)
-    "downtime":     (COLOR_DOWNTIME, "#ffffff"),   # blue  (scheduled downtime)
+    "ok":           (COLOR_OK,       "#1a3a1a"),   # green  — site in production
+    "waiting_room": ("#A000A0",      "#ffffff"),   # purple — site not yet in production (WR)
+    "morgue":       ("#663300",      "#ffffff"),   # brown  — site decommissioned
+    "downtime":     (COLOR_DOWNTIME, "#ffffff"),   # blue   — scheduled downtime
 }
 SSB_BADGE_LABELS = {
     "ok":           "ok",
@@ -217,36 +217,29 @@ def parse_report(content, problem_days=MAX_DAYS):
                     site_data["max_severity"] = sev
 
         # --- SSB administrative state (ok / waiting_room / morgue / downtime) ---
-        # The report.html legend shows "WR" for waiting_room and "Morgue" for morgue
-        # in the Site Readiness row text. Downtime is detected from metric cells.
+        # "Life Status:" row uses tdCell1 cells (no link), with text "WR" or "M".
+        # Colors: #A000A0 = Waiting Room, #663300 = Morgue, #6080FF = downtime, #80FF80 = ok.
+        cell1_pat = re.compile(
+            r'<TD[^>]+CLASS="tdCell1"[^>]*background-color:\s*(#[0-9A-Fa-f]{6})[^>]*>([^<]*)',
+            re.IGNORECASE,
+        )
+
         ssb = "ok"  # default: site is in production
 
-        sr_idx = block.find("Site Readiness:")
-        if sr_idx >= 0:
-            row_end = block.find("<TR", sr_idx + 10)
-            row_html = block[sr_idx:row_end] if row_end > 0 else block[sr_idx:sr_idx + 4000]
-            # Strip tags and normalise whitespace for text matching
-            sr_text = re.sub(r"<[^>]+>", " ", row_html)
-            sr_text = re.sub(r"\s+", " ", sr_text).strip()
-            if re.search(r"\bWR\b", sr_text):
-                ssb = "waiting_room"
-            elif re.search(r"\bMorgue\b", sr_text, re.IGNORECASE):
-                ssb = "morgue"
-            else:
-                # Check if most recent colored cell in the row indicates downtime
-                sr_cells = cell_pattern.findall(row_html)
-                if sr_cells and cell_status(sr_cells[-1][0]) == "downtime":
+        ls_idx = block.find("Life Status:")
+        if ls_idx >= 0:
+            row_end = block.find("<TR", ls_idx + 10)
+            row_html = block[ls_idx:row_end] if row_end > 0 else block[ls_idx:ls_idx + 4000]
+            ls_cells = cell1_pat.findall(row_html)
+            if ls_cells:
+                # Most recent cell (last in the row)
+                last_color, last_text = ls_cells[-1][0].upper(), ls_cells[-1][1].strip()
+                if last_color == "#A000A0" or last_text == "WR":
+                    ssb = "waiting_room"
+                elif last_color == "#663300" or last_text == "M":
+                    ssb = "morgue"
+                elif last_color == COLOR_DOWNTIME.upper():
                     ssb = "downtime"
-
-        if ssb == "ok":
-            # Fallback: if ALL recent metric cells are downtime, treat as downtime
-            recent = [
-                cells[-1]["status"]
-                for key in ("SAM", "HC", "FTS")
-                for cells in [site_data[key]] if cells
-            ]
-            if recent and all(s == "downtime" for s in recent):
-                ssb = "downtime"
 
         site_data["ssb_status"] = ssb
         site_data["ssb_color"]  = SSB_BADGE_COLORS.get(ssb, ("", ""))[0]
