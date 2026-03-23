@@ -602,6 +602,7 @@ function applyFilters() {{
   var chkErr  = document.getElementById('filter-errors').checked;
   var chkOk   = document.getElementById('filter-ok').checked;
   var ssbFilter = document.getElementById('ssb-sel').value;
+  var chkCmsTickets = document.getElementById('filter-cms-tickets').checked;
   var search  = document.getElementById('site-search').value.trim().toLowerCase();
   var searchActive = search.length >= 3;
 
@@ -647,10 +648,10 @@ function applyFilters() {{
     }});
 
     var ssbOk = (ssbFilter === 'all') || (block.getAttribute('data-ssb') === ssbFilter);
-    block.classList.toggle('hidden-by-ssb', !ssbOk);
+    var hasCmsTickets = block.getAttribute('data-cms-tickets') === '1';
 
     if (searchActive) {{
-      // search mode: ignore tier/error/ssb filters, match by site name
+      // search mode: ignore all other filters, match by site name
       var siteName = (block.getAttribute('data-site') || '').toLowerCase();
       var match = siteName.includes(search);
       block.classList.toggle('hidden-by-search', !match);
@@ -658,12 +659,26 @@ function applyFilters() {{
       block.classList.remove('hidden-by-filter');
       block.classList.remove('hidden-by-ssb');
       if (match) {{ shownCount++; if (hasError) shownErrors++; }}
+    }} else if (chkCmsTickets) {{
+      // CMS tickets mode: show all sites with open CMS tickets, ignore tier/SSB
+      block.classList.remove('hidden-by-search');
+      block.classList.remove('hidden-by-tier');
+      block.classList.remove('hidden-by-ssb');
+      var passFilter;
+      if (!chkErr && !chkOk) {{
+        passFilter = hasCmsTickets;
+      }} else {{
+        passFilter = hasCmsTickets && ((chkErr && hasError) || (chkOk && !hasError));
+      }}
+      block.classList.toggle('hidden-by-filter', !passFilter);
+      if (passFilter) {{ shownCount++; if (hasError) shownErrors++; }}
     }} else {{
       // normal mode
       block.classList.remove('hidden-by-search');
       var tier = block.getAttribute('data-tier');
       var tierOk = activeTiers[tier];
       block.classList.toggle('hidden-by-tier', !tierOk);
+      block.classList.toggle('hidden-by-ssb', !ssbOk);
       var passFilter;
       if (!chkErr && !chkOk) {{
         passFilter = true;
@@ -677,7 +692,7 @@ function applyFilters() {{
 
   // hide tier separators
   document.querySelectorAll('.tier-separator').forEach(function(sep) {{
-    if (searchActive) {{ sep.style.display = 'none'; return; }}
+    if (searchActive || chkCmsTickets) {{ sep.style.display = 'none'; return; }}
     var next = sep.nextElementSibling;
     var anyVisible = false;
     while (next && !next.classList.contains('tier-separator')) {{
@@ -744,6 +759,7 @@ window.addEventListener('DOMContentLoaded', function() {{
   document.getElementById('filter-errors').addEventListener('change', applyFilters);
   document.getElementById('filter-ok').addEventListener('change', applyFilters);
   document.getElementById('ssb-sel').addEventListener('change', applyFilters);
+  document.getElementById('filter-cms-tickets').addEventListener('change', applyFilters);
   document.getElementById('site-search').addEventListener('input', applyFilters);
   document.querySelectorAll('.tier-chk').forEach(function(cb) {{
     cb.addEventListener('change', applyFilters);
@@ -874,6 +890,10 @@ document.addEventListener('keydown', function(e) {{
       <option value="downtime">downtime</option>
     </select>
   </div>
+  <label class="filter-ctrl">
+    <input type="checkbox" id="filter-cms-tickets">
+    CMS tickets
+  </label>
   <div class="site-search-wrap">
     <input type="text" id="site-search" placeholder="&#128269; Search site..." autocomplete="off" spellcheck="false">
     <span id="search-hint" style="display:none"></span>
@@ -960,7 +980,7 @@ document.addEventListener('keydown', function(e) {{
             ssb_badge = ''
 
         html_out += f"""
-<div class="site-block" data-tier="{this_tier}" data-severity="{sev}" data-site="{site_name}" data-ssb="{ssb_status or 'ok'}">
+<div class="site-block" data-tier="{this_tier}" data-severity="{sev}" data-site="{site_name}" data-ssb="{ssb_status or 'ok'}" data-cms-tickets="{1 if n_cms else 0}">
   <div class="site-header">
     <div class="site-name">
       <a href="{summary_url}" target="_blank">{site_name}</a>
