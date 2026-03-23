@@ -660,18 +660,12 @@ function applyFilters() {{
       block.classList.remove('hidden-by-ssb');
       if (match) {{ shownCount++; if (hasError) shownErrors++; }}
     }} else if (chkCmsTickets) {{
-      // CMS tickets mode: show all sites with open CMS tickets, ignore tier/SSB
+      // CMS tickets mode: show all sites with open CMS tickets, ignore tier/SSB/error filters
       block.classList.remove('hidden-by-search');
       block.classList.remove('hidden-by-tier');
       block.classList.remove('hidden-by-ssb');
-      var passFilter;
-      if (!chkErr && !chkOk) {{
-        passFilter = hasCmsTickets;
-      }} else {{
-        passFilter = hasCmsTickets && ((chkErr && hasError) || (chkOk && !hasError));
-      }}
-      block.classList.toggle('hidden-by-filter', !passFilter);
-      if (passFilter) {{ shownCount++; if (hasError) shownErrors++; }}
+      block.classList.toggle('hidden-by-filter', !hasCmsTickets);
+      if (hasCmsTickets) {{ shownCount++; if (hasError) shownErrors++; }}
     }} else {{
       // normal mode
       block.classList.remove('hidden-by-search');
