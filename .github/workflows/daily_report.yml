@@ -2,10 +2,8 @@ name: CMS SST Report
 
 on:
   schedule:
-    # Every 2 hours during European daytime (06:00–20:00 CET = 05:00–19:00 UTC)
-    # Winter (CET=UTC+1): runs at 06,08,10,12,14,16,18,20 CET
-    # Summer (CEST=UTC+2): runs at 07,09,11,13,15,17,19,21 CEST (±1h shift)
-    - cron: "0 5,7,9,11,13,15,17,19 * * *"
+    # Every 15 minutes
+    - cron: "*/15 * * * *"
   workflow_dispatch:   # allow manual trigger from GitHub UI
 
 permissions:
