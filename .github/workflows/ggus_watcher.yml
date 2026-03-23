@@ -1,0 +1,62 @@
+name: GGUS Ticket Watcher
+
+on:
+  schedule:
+    # Every 10 minutes — triggers daily_report if new/updated tickets found
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write   # needed to trigger daily_report.yml
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check for recently updated GGUS tickets
+        id: check
+        env:
+          GGUS_TOKEN: ${{ secrets.GGUS_TOKEN }}
+        run: |
+          # Look back 15 min (small buffer over the 10-min schedule interval)
+          SINCE=$(date -u -d '15 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+          echo "Checking GGUS tickets updated since ${SINCE}"
+
+          RESPONSE=$(curl -sf \
+            -G \
+            --data-urlencode "query=updated_at:>=\"${SINCE}\"" \
+            --data-urlencode "sort_by=updated_at" \
+            --data-urlencode "order_by=desc" \
+            --data-urlencode "limit=10" \
+            --data-urlencode "expand=false" \
+            -H "Authorization: Token ${GGUS_TOKEN}" \
+            -H "Content-Type: application/json; charset=UTF-8" \
+            -H "User-Agent: ggus-watcher" \
+            "https://helpdesk.ggus.eu/api/v1/tickets/search") || {
+            echo "GGUS API unreachable or returned error — skipping trigger"
+            echo "new_tickets=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+
+          COUNT=$(echo "$RESPONSE" | jq 'if type == "array" then length else 0 end')
+          echo "Found ${COUNT} recently updated ticket(s)"
+
+          if [ "$COUNT" -gt 0 ]; then
+            echo "new_tickets=true" >> "$GITHUB_OUTPUT"
+            echo "Ticket IDs: $(echo "$RESPONSE" | jq '[.[].id]')"
+          else
+            echo "new_tickets=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger main report
+        if: steps.check.outputs.new_tickets == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "New/updated GGUS tickets detected — triggering daily_report.yml"
+          gh workflow run daily_report.yml --repo "${{ github.repository }}"
