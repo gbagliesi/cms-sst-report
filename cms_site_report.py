@@ -372,10 +372,11 @@ def fetch_ggus_tickets(token, art_cache=None, max_batches=64):
 # Generate HTML report
 # ---------------------------------------------------------------------------
 def severity_label(sev):
-    if sev >= 3: return ("ERROR", "#FF4444")
-    if sev >= 2: return ("PARTIAL/ADHOC", "#FF8800")
-    if sev >= 1: return ("WARNING", "#CCCC00")
-    return ("OK", "#44BB44")
+    """Return (label, bg_color, text_color) using SSB standard colors."""
+    if sev >= 3: return ("error",   COLOR_ERROR,   "#ffffff")
+    if sev >= 2: return ("partial", COLOR_PDTIME,  "#ffffff")
+    if sev >= 1: return ("warning", COLOR_WARNING, "#333333")
+    return ("ok",    COLOR_OK,      "#1a3a1a")
 
 
 def metric_html(cells, metric_name):
@@ -912,7 +913,7 @@ document.addEventListener('keydown', function(e) {{
     current_tier = None
     for site_name, data in site_list:
         sev = data["max_severity"]
-        sev_label, sev_color = severity_label(sev)
+        sev_label, sev_color, sev_txt = severity_label(sev)
         tickets = ggus_by_site.get(site_name, [])
         n_tickets = len(tickets)
 
@@ -954,7 +955,7 @@ document.addEventListener('keydown', function(e) {{
       <a href="{summary_url}" target="_blank">{site_name}</a>
     </div>
     <span class="site-tier">{tier_str}</span>
-    <span class="sev-badge" style="background:{sev_color};color:#fff">{sev_label}</span>
+    <span class="sev-badge" style="background:{sev_color};color:{sev_txt}">{sev_label}</span>
     {ssb_badge}
     <a href="{report_anchor}" target="_blank" class="full-report-link">full report</a>
     <span class="ticket-count">{ticket_stat}</span>
@@ -1136,7 +1137,7 @@ def main():
     print(f"\n{'='*60}", file=sys.stderr)
     print(f"Sites in ERROR : {len(problem_sites)} / {len(sites_data)}", file=sys.stderr)
     for site, data in problem_sites:
-        sev_lbl, _ = severity_label(data["max_severity"])
+        sev_lbl, *_ = severity_label(data["max_severity"])
         n_t = len(ggus_by_site.get(site, []))
         ticket_str = f" | {n_t} ticket{'s' if n_t != 1 else ''}" if n_t else ""
         print(f"  {site:<32} {sev_lbl:<12}{ticket_str}", file=sys.stderr)
