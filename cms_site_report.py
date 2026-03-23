@@ -285,7 +285,7 @@ def fetch_ggus_tickets(token, art_cache=None, max_batches=64):
 
     QUERY = ("(!((state.name:solved)OR(state.name:unsolved)OR"
              "(state.name:closed)OR(state.name:verified))AND id:>%d)")
-    PARAMS = "&sort_by=id&order_by=asc&limit=32&expand=false"
+    PARAMS = "&sort_by=id&order_by=asc&limit=32&expand=true"
 
     ticket_list = []
     last_id = 0
