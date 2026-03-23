@@ -721,7 +721,7 @@ function applyFilters() {{
   if (elTotal) elTotal.textContent = tierCount;
 }}
 
-function doRefresh() {{
+function doRefresh(auto) {{
   var btn = document.getElementById('refresh-btn');
   var isLocal = window.location.hostname === 'localhost' ||
                 window.location.hostname === '127.0.0.1';
@@ -732,8 +732,15 @@ function doRefresh() {{
     fetch('/refresh')
       .then(function(r) {{ return r.json(); }})
       .then(function(d) {{
-        if (d.status === 'ok') {{ location.reload(); }}
-        else {{
+        if (d.status === 'ok') {{
+          if (!auto || d.changed) {{
+            location.reload();
+          }} else {{
+            btn.disabled = false;
+            btn.textContent = '⟳';
+            btn.title = 'No changes — next check in 10 min';
+          }}
+        }} else {{
           btn.disabled = false;
           btn.title = 'Error — check terminal';
           btn.textContent = '⟳';
@@ -747,6 +754,8 @@ function doRefresh() {{
     window.open('https://github.com/gbagliesi/cms-sst-report/actions', '_blank');
   }}
 }}
+// Auto-refresh every 10 minutes (detects new tickets, closed tickets, and updates)
+setInterval(function() {{ doRefresh(true); }}, 600000);
 
 window.addEventListener('DOMContentLoaded', function() {{
   document.getElementById('days-sel').addEventListener('change', applyFilters);

@@ -10,6 +10,7 @@ Usage:
 """
 
 import argparse
+import hashlib
 import http.server
 import json
 import subprocess
@@ -17,6 +18,14 @@ import sys
 import threading
 import webbrowser
 from pathlib import Path
+
+
+def _file_hash(path):
+    """MD5 of file contents, or empty string if file does not exist."""
+    try:
+        return hashlib.md5(path.read_bytes()).hexdigest()
+    except OSError:
+        return ""
 
 DEFAULT_PORT = 8765
 REPORT_PATH  = Path("cms_local_report.html")
@@ -39,17 +48,24 @@ class ReportHandler(http.server.BaseHTTPRequestHandler):
 
         elif self.path.startswith('/refresh'):
             print("[server] Refresh requested — regenerating report...", flush=True)
+            old_hash = _file_hash(REPORT_PATH)
             cmd = ['python3', 'cms_site_report.py', '--out', str(REPORT_PATH)]
             if self.server.days:
                 cmd += ['--days', str(self.server.days)]
             result = subprocess.run(cmd, capture_output=True, text=True)
-            ok  = result.returncode == 0
-            msg = (result.stderr or '').strip()[-500:]
+            ok      = result.returncode == 0
+            msg     = (result.stderr or '').strip()[-500:]
+            changed = ok and (_file_hash(REPORT_PATH) != old_hash)
             if ok:
-                print("[server] Report refreshed.", flush=True)
+                print(f"[server] Report refreshed ({'changed' if changed else 'no changes'}).",
+                      flush=True)
             else:
                 print(f"[server] ERROR:\n{msg}", flush=True)
-            resp = json.dumps({'status': 'ok' if ok else 'error', 'log': msg}).encode()
+            resp = json.dumps({
+                'status':  'ok' if ok else 'error',
+                'changed': changed,
+                'log':     msg,
+            }).encode()
             self._respond(200, 'application/json', resp)
 
         else:
