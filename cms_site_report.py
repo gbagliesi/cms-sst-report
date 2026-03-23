@@ -533,6 +533,7 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all):
   .site-block.hidden-by-filter {{ display: none; }}
   .site-block.hidden-by-tier   {{ display: none; }}
   .site-block.hidden-by-search {{ display: none; }}
+  .site-block.hidden-by-ssb    {{ display: none; }}
   .site-search-wrap {{ display:flex; align-items:center; gap:6px; }}
   #site-search {{
     padding: 3px 8px; border: 1px solid #1a4a6e; border-radius: 4px;
@@ -870,6 +871,7 @@ document.addEventListener('keydown', function(e) {{
       <option value="ok">ok</option>
       <option value="waiting_room">WR</option>
       <option value="morgue">morgue</option>
+      <option value="downtime">downtime</option>
     </select>
   </div>
   <div class="site-search-wrap">
