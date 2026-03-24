@@ -1295,11 +1295,14 @@ function showTab(name) {{
     html_out += '<div id="tab-tickets" style="display:none">\n'
     html_out += (
         '<div class="tier-ctrl" style="margin:10px 0 16px 0;padding:8px 12px;'
-        'background:#e0e8f0;border-radius:4px;">'
+        'background:#e0e8f0;border-radius:4px;display:flex;align-items:center;gap:10px;">'
         '<span>Tier:</span>'
         '<label class="tier-btn"><input class="tktab-tier-chk" type="checkbox" value="1" checked> T1</label>'
         '<label class="tier-btn"><input class="tktab-tier-chk" type="checkbox" value="2" checked> T2</label>'
         '<label class="tier-btn"><input class="tktab-tier-chk" type="checkbox" value="3" checked> T3</label>'
+        '<button onclick="doRefresh()" title="Refresh data"'
+        ' style="background:#ffffff;color:#1a4a6e;border:1px solid #1a4a6e;border-radius:4px;'
+        'padding:2px 10px;cursor:pointer;font-size:14px;margin-left:8px;">&#8635;</button>'
         '</div>\n'
     )
     for grp in GROUP_ORDER:
