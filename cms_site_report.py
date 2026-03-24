@@ -907,6 +907,9 @@ window.addEventListener('DOMContentLoaded', function() {{
   document.querySelectorAll('.tier-chk').forEach(function(cb) {{
     cb.addEventListener('change', applyFilters);
   }});
+  document.querySelectorAll('.tktab-tier-chk').forEach(function(cb) {{
+    cb.addEventListener('change', applyTktabTierFilter);
+  }});
   applyFilters();
 }});
 
@@ -990,6 +993,24 @@ function closeDrawer() {{
 document.addEventListener('keydown', function(e) {{
   if (e.key === 'Escape') closeDrawer();
 }});
+
+function applyTktabTierFilter() {{
+  var active = {{}};
+  document.querySelectorAll('.tktab-tier-chk').forEach(function(cb) {{
+    active[cb.value] = cb.checked;
+  }});
+  document.querySelectorAll('[id^="tktab-grp-"]').forEach(function(grpEl) {{
+    var visible = 0;
+    grpEl.querySelectorAll('.tktab-site').forEach(function(site) {{
+      var show = active[site.getAttribute('data-tier')] !== false;
+      site.style.display = show ? '' : 'none';
+      if (show) visible++;
+    }});
+    var cnt = grpEl.querySelector('.tktab-grp-cnt');
+    if (cnt) cnt.textContent = visible;
+    grpEl.style.display = visible ? '' : 'none';
+  }});
+}}
 
 function showTab(name) {{
   document.getElementById('tab-sites').style.display    = name === 'sites'   ? '' : 'none';
@@ -1104,8 +1125,8 @@ function showTab(name) {{
         age_class = ticket_age_class(t["created_at"])
         hl_class  = " ticket-highlighted" if highlight else ""
         t_url     = GGUS_TICKET_URL.format(id=t["id"])
-        created   = t["created_at"][:10]
-        updated   = t["updated_at"][:10]
+        created   = t["created_at"][:16].replace("T", " ")
+        updated   = t["updated_at"][:16].replace("T", " ")
         days_open = days_ago(t["created_at"])
         vo_badge  = '<span class="vo-badge vo-cms">CMS</span>' if t.get("is_cms") \
                     else '<span class="vo-badge vo-wlcg">WLCG</span>'
@@ -1258,6 +1279,7 @@ function showTab(name) {{
         return ticket_group_key(t["updated_at"]) == group
 
     # Collect sites with CMS tickets, assign to group by most-recent updated_at
+    # Sort within group by most-recent updated_at descending
     tktab_groups = {g: [] for g in GROUP_ORDER}
     for sn, _ in site_list:
         cms = sorted([t for t in ggus_by_site.get(sn, []) if t.get("is_cms")],
@@ -1265,15 +1287,30 @@ function showTab(name) {{
         if not cms:
             continue
         group = ticket_group_key(cms[0]["updated_at"])
-        tktab_groups[group].append((sn, cms))
+        tktab_groups[group].append((sn, cms, cms[0]["updated_at"]))
+
+    for grp in GROUP_ORDER:
+        tktab_groups[grp].sort(key=lambda x: x[2], reverse=True)  # sort by most recent update
 
     html_out += '<div id="tab-tickets" style="display:none">\n'
+    html_out += (
+        '<div class="tier-ctrl" style="margin:10px 0 16px 0;padding:8px 12px;'
+        'background:#e0e8f0;border-radius:4px;">'
+        '<span>Tier:</span>'
+        '<label class="tier-btn"><input class="tktab-tier-chk" type="checkbox" value="1" checked> T1</label>'
+        '<label class="tier-btn"><input class="tktab-tier-chk" type="checkbox" value="2" checked> T2</label>'
+        '<label class="tier-btn"><input class="tktab-tier-chk" type="checkbox" value="3" checked> T3</label>'
+        '</div>\n'
+    )
     for grp in GROUP_ORDER:
         sites_in_grp = tktab_groups[grp]
         if not sites_in_grp:
             continue
-        html_out += f'<div class="time-group"><div class="time-group-hdr">{GROUP_LABELS[grp]} ({len(sites_in_grp)} site{"s" if len(sites_in_grp)!=1 else ""})</div>\n'
-        for sn, cms_tickets in sites_in_grp:
+        html_out += (f'<div class="time-group" id="tktab-grp-{grp}">'
+                     f'<div class="time-group-hdr">{GROUP_LABELS[grp]}'
+                     f' (<span class="tktab-grp-cnt" id="tktab-cnt-{grp}">{len(sites_in_grp)}</span>'
+                     f' site{"s" if len(sites_in_grp)!=1 else ""})</div>\n')
+        for sn, cms_tickets, _ in sites_in_grp:
             site_data  = sites_data.get(sn, {})
             ssb_status = site_data.get("ssb_status")
             ssb_badge  = ""
@@ -1282,8 +1319,10 @@ function showTab(name) {{
                 ssb_badge = (f'<span class="ssb-badge" style="background:{ssb_bg};color:{ssb_fg}"'
                              f' title="SSB site state">SSB: {SSB_BADGE_LABELS[ssb_status]}</span>')
             summary_url = f"https://cmssst.web.cern.ch/sitereadiness/report.html#{sn}"
+            sn_tier = re.match(r"T(\d)", sn)
+            sn_tier_val = sn_tier.group(1) if sn_tier else "?"
             html_out += (
-                f'<div class="tktab-site">'
+                f'<div class="tktab-site" data-tier="{sn_tier_val}">'
                 f'<div class="tktab-site-hdr">'
                 f'<a href="{summary_url}" target="_blank">{sn}</a>'
                 f'{ssb_badge}'
