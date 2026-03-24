@@ -1025,12 +1025,7 @@ function showTab(name) {{
 <body>
 
 <h1>&#9888; CMS SST — Daily Site Report</h1>
-<div class="tab-bar">
-  <button class="tab-btn active" data-tab="sites"   onclick="showTab('sites')">Sites</button>
-  <button class="tab-btn"        data-tab="tickets" onclick="showTab('tickets')">CMS Tickets by time</button>
-</div>
-<div id="sites-toolbar">
-<div class="subtitle" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
+<div class="subtitle" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
   <span>Generated: {now_str}<span id="local-time"></span> &nbsp;|&nbsp;
     Source: <a href="https://cmssst.web.cern.ch/siteStatus/summary.html" target="_blank" style="color:#1a4a6e">siteStatus/summary.html</a> +
     <a href="https://helpdesk.ggus.eu" target="_blank" style="color:#1a4a6e">GGUS</a>
@@ -1038,6 +1033,13 @@ function showTab(name) {{
   <button id="refresh-btn" onclick="doRefresh()" title="Refresh data (local) or open GitHub Actions (GitHub Pages)"
     style="background:#ffffff;color:#1a4a6e;border:1px solid #1a4a6e;border-radius:4px;
            padding:2px 10px;cursor:pointer;font-size:14px;margin-left:4px;">&#8635;</button>
+</div>
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="sites"   onclick="showTab('sites')">Sites</button>
+  <button class="tab-btn"        data-tab="tickets" onclick="showTab('tickets')">CMS Tickets by time</button>
+</div>
+<div id="sites-toolbar">
+<div class="subtitle" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px;">
   <div class="days-ctrl">
     <label>Window:</label>
     <select id="days-sel">
@@ -1300,9 +1302,6 @@ function showTab(name) {{
         '<label class="tier-btn"><input class="tktab-tier-chk" type="checkbox" value="1" checked> T1</label>'
         '<label class="tier-btn"><input class="tktab-tier-chk" type="checkbox" value="2" checked> T2</label>'
         '<label class="tier-btn"><input class="tktab-tier-chk" type="checkbox" value="3" checked> T3</label>'
-        '<button onclick="doRefresh()" title="Refresh data"'
-        ' style="background:#ffffff;color:#1a4a6e;border:1px solid #1a4a6e;border-radius:4px;'
-        'padding:2px 10px;cursor:pointer;font-size:14px;margin-left:8px;">&#8635;</button>'
         '</div>\n'
     )
     for grp in GROUP_ORDER:
