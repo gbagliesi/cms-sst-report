@@ -23,8 +23,8 @@ jobs:
         env:
           GGUS_TOKEN: ${{ secrets.GGUS_TOKEN }}
         run: |
-          # Look back 15 min (small buffer over the 10-min schedule interval)
-          SINCE=$(date -u -d '15 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+          # Look back 90 min to cover skipped GitHub Actions cron runs
+          SINCE=$(date -u -d '90 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
           echo "Checking GGUS tickets updated since ${SINCE}"
 
           RESPONSE=$(curl -sf \
