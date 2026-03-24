@@ -595,6 +595,28 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all, trigger_toke
     cursor: pointer; text-decoration: underline dotted; color: inherit;
   }}
   .tstat-link:hover {{ color: #ffffff; }}
+
+  /* Tab bar */
+  .tab-bar {{ display:flex; gap:4px; margin-bottom:0;
+              border-bottom:2px solid #1a4a6e; padding-bottom:0; }}
+  .tab-btn {{ padding:6px 20px; background:#e0e8f0; color:#1a4a6e;
+              border:1px solid #1a4a6e; border-bottom:none;
+              border-radius:4px 4px 0 0; cursor:pointer;
+              font-weight:bold; font-size:13px; }}
+  .tab-btn.active {{ background:#1a4a6e; color:#fff; }}
+  .tab-btn:not(.active):hover {{ background:#c8d8e8; }}
+
+  /* Ticket tab */
+  .time-group {{ margin-bottom:28px; }}
+  .time-group-hdr {{ background:#1a4a6e; color:#fff; padding:6px 14px;
+                     border-radius:4px; font-size:13px; font-weight:bold;
+                     margin-bottom:10px; }}
+  .tktab-site {{ margin-bottom:14px; background:#fff; border-radius:6px;
+                 border:1px solid #c8d8e8; padding:12px 16px; }}
+  .tktab-site-hdr {{ font-size:14px; font-weight:bold; margin-bottom:8px;
+                     display:flex; align-items:center; gap:8px; flex-wrap:wrap; }}
+  .ticket-highlighted {{ box-shadow:0 0 0 2px #e67e00;
+                         background:#fffbf0 !important; }}
 </style>
 <script>
 var cmsFilterSave = null;
@@ -968,11 +990,25 @@ function closeDrawer() {{
 document.addEventListener('keydown', function(e) {{
   if (e.key === 'Escape') closeDrawer();
 }});
+
+function showTab(name) {{
+  document.getElementById('tab-sites').style.display    = name === 'sites'   ? '' : 'none';
+  document.getElementById('tab-tickets').style.display  = name === 'tickets' ? '' : 'none';
+  document.getElementById('sites-toolbar').style.display = name === 'sites'  ? '' : 'none';
+  document.querySelectorAll('.tab-btn').forEach(function(b) {{
+    b.classList.toggle('active', b.getAttribute('data-tab') === name);
+  }});
+}}
 </script>
 </head>
 <body>
 
 <h1>&#9888; CMS SST — Daily Site Report</h1>
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="sites"   onclick="showTab('sites')">Sites</button>
+  <button class="tab-btn"        data-tab="tickets" onclick="showTab('tickets')">CMS Tickets by time</button>
+</div>
+<div id="sites-toolbar">
 <div class="subtitle" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
   <span>Generated: {now_str}<span id="local-time"></span> &nbsp;|&nbsp;
     Source: <a href="https://cmssst.web.cern.ch/siteStatus/summary.html" target="_blank" style="color:#1a4a6e">siteStatus/summary.html</a> +
@@ -1032,6 +1068,8 @@ document.addEventListener('keydown', function(e) {{
   Click a cell for the SAM/HC/FTS log. Click a site name for the full readiness report.
   &#8635; refreshes data locally or opens GitHub Actions on the public page.
 </p>
+</div>
+<div id="tab-sites">
 """
 
     # Build ticket data for JS drawer
@@ -1061,6 +1099,54 @@ document.addEventListener('keydown', function(e) {{
         f'<th class="dth" data-didx="{didx}">-{didx}d</th>'
         for didx in range(MAX_DAYS, 0, -1)
     )
+
+    def render_ticket(t, highlight=False):
+        age_class = ticket_age_class(t["created_at"])
+        hl_class  = " ticket-highlighted" if highlight else ""
+        t_url     = GGUS_TICKET_URL.format(id=t["id"])
+        created   = t["created_at"][:10]
+        updated   = t["updated_at"][:10]
+        days_open = days_ago(t["created_at"])
+        vo_badge  = '<span class="vo-badge vo-cms">CMS</span>' if t.get("is_cms") \
+                    else '<span class="vo-badge vo-wlcg">WLCG</span>'
+        articles  = t.get("articles", [])
+        n_art     = len(articles)
+        conv_html = ""
+        if articles:
+            parts = []
+            for i, art in enumerate(articles):
+                sender   = html.escape(art.get("from", "unknown"))
+                art_date = art.get("created_at", "")[:16]
+                body_e   = linkify(art.get("body", ""))
+                label    = "Initial report" if i == 0 else f"Reply {i}"
+                parts.append(
+                    f'<div class="conv-article">'
+                    f'<div class="conv-article-meta">#{i+1} {label} &nbsp;|&nbsp; {sender} &nbsp;|&nbsp; {art_date}</div>'
+                    f'<div class="conv-article-body">{body_e}</div>'
+                    f'</div>'
+                )
+            conv_inner = "\n".join(parts)
+            conv_html = (
+                f'<details class="ticket-conv">'
+                f'<summary>Conversation ({n_art} message{"s" if n_art != 1 else ""})</summary>'
+                f'{conv_inner}'
+                f'</details>'
+            )
+        return f"""
+    <div class="ticket {age_class}{hl_class}">
+      <div class="ticket-header">
+        {vo_badge}
+        <span class="ticket-id"><a href="{t_url}" target="_blank">#{t["number"]} (id:{t["id"]})</a></span>
+        <span class="ticket-title">{html.escape(t["title"])}</span>
+      </div>
+      <div class="ticket-meta">
+        State: <b>{t["state"]}</b> &nbsp;|&nbsp;
+        Priority: {t["priority"]} &nbsp;|&nbsp;
+        Opened: {'<span style="color:#cc4400;font-weight:bold">' if days_open > 90 else ''}{created} ({days_open}d ago){'</span>' if days_open > 90 else ''} &nbsp;|&nbsp;
+        Updated: {updated}
+      </div>
+      {conv_html}
+    </div>"""
 
     current_tier = None
     for site_name, data in site_list:
@@ -1125,61 +1211,12 @@ document.addEventListener('keydown', function(e) {{
         # Tickets section — CMS tickets expanded, WLCG collapsed
         html_out += '<div class="tickets-section">'
         if tickets:
-            # Sort within each group by date descending
-            def ticket_sort_key(t):
-                return t["created_at"]
-            cms_tickets  = sorted([t for t in tickets if t.get("is_cms")],  key=ticket_sort_key, reverse=True)
-            wlcg_tickets = sorted([t for t in tickets if not t.get("is_cms")], key=ticket_sort_key, reverse=True)
+            cms_tickets  = sorted([t for t in tickets if t.get("is_cms")],
+                                  key=lambda t: t["updated_at"], reverse=True)
+            wlcg_tickets = sorted([t for t in tickets if not t.get("is_cms")],
+                                  key=lambda t: t["updated_at"], reverse=True)
 
             html_out += f'<h3>Open GGUS tickets ({n_tickets})</h3>'
-
-            def render_ticket(t):
-                age_class = ticket_age_class(t["created_at"])
-                t_url     = GGUS_TICKET_URL.format(id=t["id"])
-                created   = t["created_at"][:10]
-                updated   = t["updated_at"][:10]
-                days_open = days_ago(t["created_at"])
-                vo_badge  = '<span class="vo-badge vo-cms">CMS</span>' if t.get("is_cms") \
-                            else '<span class="vo-badge vo-wlcg">WLCG</span>'
-                articles  = t.get("articles", [])
-                n_art     = len(articles)
-                # Build conversation block
-                conv_html = ""
-                if articles:
-                    parts = []
-                    for i, art in enumerate(articles):
-                        sender   = html.escape(art.get("from", "unknown"))
-                        art_date = art.get("created_at", "")[:16]
-                        body_e   = linkify(art.get("body", ""))
-                        label    = "Initial report" if i == 0 else f"Reply {i}"
-                        parts.append(
-                            f'<div class="conv-article">'
-                            f'<div class="conv-article-meta">#{i+1} {label} &nbsp;|&nbsp; {sender} &nbsp;|&nbsp; {art_date}</div>'
-                            f'<div class="conv-article-body">{body_e}</div>'
-                            f'</div>'
-                        )
-                    conv_inner = "\n".join(parts)
-                    conv_html = (
-                        f'<details class="ticket-conv">'
-                        f'<summary>Conversation ({n_art} message{"s" if n_art != 1 else ""})</summary>'
-                        f'{conv_inner}'
-                        f'</details>'
-                    )
-                return f"""
-    <div class="ticket {age_class}">
-      <div class="ticket-header">
-        {vo_badge}
-        <span class="ticket-id"><a href="{t_url}" target="_blank">#{t["number"]} (id:{t["id"]})</a></span>
-        <span class="ticket-title">{html.escape(t["title"])}</span>
-      </div>
-      <div class="ticket-meta">
-        State: <b>{t["state"]}</b> &nbsp;|&nbsp;
-        Priority: {t["priority"]} &nbsp;|&nbsp;
-        Opened: {'<span style="color:#cc4400;font-weight:bold">' if days_open > 90 else ''}{created} ({days_open}d ago){'</span>' if days_open > 90 else ''} &nbsp;|&nbsp;
-        Updated: {updated}
-      </div>
-      {conv_html}
-    </div>"""
 
             if cms_tickets:
                 html_out += f'<details class="ticket-group" open><summary>CMS tickets ({len(cms_tickets)})</summary>'
@@ -1196,6 +1233,68 @@ document.addEventListener('keydown', function(e) {{
             html_out += '<p class="no-tickets">No open GGUS tickets</p>'
 
         html_out += "</div></div></div>\n"
+
+    html_out += "</div>\n"  # close tab-sites
+
+    # --- Ticket tab (CMS tickets grouped by time) ---
+    from datetime import timedelta
+    today     = datetime.now(timezone.utc).date()
+    yesterday = today - timedelta(days=1)
+    today_str     = today.isoformat()
+    yesterday_str = yesterday.isoformat()
+
+    GROUP_ORDER  = ["today", "yesterday", "week", "older"]
+    GROUP_LABELS = {"today": "Today", "yesterday": "Yesterday",
+                    "week": "Last 7 days", "older": "Older"}
+
+    def ticket_group_key(updated_at_str):
+        d = updated_at_str[:10]
+        if d == today_str:     return "today"
+        if d == yesterday_str: return "yesterday"
+        delta = (today - datetime.fromisoformat(d).date()).days
+        return "week" if delta <= 7 else "older"
+
+    def ticket_in_group(t, group):
+        return ticket_group_key(t["updated_at"]) == group
+
+    # Collect sites with CMS tickets, assign to group by most-recent updated_at
+    tktab_groups = {g: [] for g in GROUP_ORDER}
+    for sn, _ in site_list:
+        cms = sorted([t for t in ggus_by_site.get(sn, []) if t.get("is_cms")],
+                     key=lambda t: t["updated_at"], reverse=True)
+        if not cms:
+            continue
+        group = ticket_group_key(cms[0]["updated_at"])
+        tktab_groups[group].append((sn, cms))
+
+    html_out += '<div id="tab-tickets" style="display:none">\n'
+    for grp in GROUP_ORDER:
+        sites_in_grp = tktab_groups[grp]
+        if not sites_in_grp:
+            continue
+        html_out += f'<div class="time-group"><div class="time-group-hdr">{GROUP_LABELS[grp]} ({len(sites_in_grp)} site{"s" if len(sites_in_grp)!=1 else ""})</div>\n'
+        for sn, cms_tickets in sites_in_grp:
+            site_data  = sites_data.get(sn, {})
+            ssb_status = site_data.get("ssb_status")
+            ssb_badge  = ""
+            if ssb_status and ssb_status in SSB_BADGE_COLORS:
+                ssb_bg, ssb_fg = SSB_BADGE_COLORS[ssb_status]
+                ssb_badge = (f'<span class="ssb-badge" style="background:{ssb_bg};color:{ssb_fg}"'
+                             f' title="SSB site state">SSB: {SSB_BADGE_LABELS[ssb_status]}</span>')
+            summary_url = f"https://cmssst.web.cern.ch/sitereadiness/report.html#{sn}"
+            html_out += (
+                f'<div class="tktab-site">'
+                f'<div class="tktab-site-hdr">'
+                f'<a href="{summary_url}" target="_blank">{sn}</a>'
+                f'{ssb_badge}'
+                f'</div>\n'
+            )
+            for t in cms_tickets:
+                hl = ticket_in_group(t, grp)
+                html_out += render_ticket(t, highlight=hl)
+            html_out += "\n</div>\n"  # tktab-site
+        html_out += "</div>\n"  # time-group
+    html_out += "</div>\n"  # tab-tickets
 
     html_out += """
 <div style="margin-top:30px;font-size:11px;color:#888;border-top:1px solid #ccc;padding-top:12px">
