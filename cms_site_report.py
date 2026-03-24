@@ -534,6 +534,20 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all, trigger_toke
   .site-block.hidden-by-tier   {{ display: none; }}
   .site-block.hidden-by-search {{ display: none; }}
   .site-block.hidden-by-ssb    {{ display: none; }}
+  #local-time {{
+    position: relative; cursor: help;
+    border-bottom: 1px dotted #888;
+  }}
+  #local-time::after {{
+    content: attr(data-utc);
+    position: absolute; bottom: 120%; left: 50%;
+    transform: translateX(-50%);
+    background: #333; color: #fff;
+    padding: 3px 8px; border-radius: 4px;
+    font-size: 11px; white-space: nowrap;
+    display: none; pointer-events: none; z-index: 200;
+  }}
+  #local-time:hover::after {{ display: block; }}
   .site-search-wrap {{ display:flex; align-items:center; gap:6px; }}
   #site-search {{
     padding: 3px 8px; border: 1px solid #1a4a6e; border-radius: 4px;
@@ -768,9 +782,7 @@ document.addEventListener('DOMContentLoaded', function() {{
     var d = new Date(s.replace(' ','T') + 'Z');
     var local = d.toLocaleTimeString([], {{hour:'2-digit', minute:'2-digit', hour12:false, timeZoneName:'short'}});
     el.textContent = local;
-    el.title = BUILD_TIME;
-    el.style.cursor = 'help';
-    el.style.borderBottom = '1px dotted #888';
+    el.setAttribute('data-utc', BUILD_TIME);
   }} catch(e) {{}}
 }});
 var THROTTLE_MS   = 600000; // 10 minutes
