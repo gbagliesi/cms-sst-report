@@ -656,7 +656,7 @@ function applyFilters() {{
       // search mode: ignore all other filters, match by site name or ticket number
       var siteName   = (block.getAttribute('data-site') || '').toLowerCase();
       var ticketNums = (block.getAttribute('data-ticket-nums') || '');
-      var isTicketSearch = /\d{{3}}/.test(search);
+      var isTicketSearch = /\\d{{3}}/.test(search);
       var match = siteName.includes(search) ||
                   (isTicketSearch && ticketNums.split(' ').some(function(n) {{ return n.includes(search); }}));
       block.classList.toggle('hidden-by-search', !match);
@@ -738,17 +738,16 @@ var GH_WORKFLOW   = "daily_report.yml";
 var BUILD_TIME    = "{now_str}";
 var lastDispatch  = 0;
 
-(function() {{
+document.addEventListener('DOMContentLoaded', function() {{
   var el = document.getElementById('local-time');
   if (!el) return;
   try {{
-    // Parse BUILD_TIME as UTC and format in local timezone
     var s = BUILD_TIME.replace(' UTC','');
     var d = new Date(s.replace(' ','T') + 'Z');
     var local = d.toLocaleString([], {{hour:'2-digit', minute:'2-digit', timeZoneName:'short'}});
     el.textContent = ' (' + local + ')';
   }} catch(e) {{}}
-}})();
+}});
 var THROTTLE_MS   = 600000; // 10 minutes
 
 function doRefresh(auto) {{
@@ -840,7 +839,7 @@ function doRefresh(auto) {{
       fetch(location.href, {{ cache: 'no-cache' }})
         .then(function(r) {{ return r.text(); }})
         .then(function(html) {{
-          var m = html.match(/var BUILD_TIME\s*=\s*"([^"]+)"/);
+          var m = html.match(/var BUILD_TIME\\s*=\\s*"([^"]+)"/);
           if (m && m[1] !== BUILD_TIME) {{ location.reload(); }}
         }})
         .catch(function() {{}});
