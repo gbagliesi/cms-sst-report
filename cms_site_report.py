@@ -766,8 +766,11 @@ document.addEventListener('DOMContentLoaded', function() {{
   try {{
     var s = BUILD_TIME.replace(' UTC','');
     var d = new Date(s.replace(' ','T') + 'Z');
-    var local = d.toLocaleString([], {{hour:'2-digit', minute:'2-digit', timeZoneName:'short'}});
-    el.textContent = ' (' + local + ')';
+    var local = d.toLocaleTimeString([], {{hour:'2-digit', minute:'2-digit', hour12:false, timeZoneName:'short'}});
+    el.textContent = local;
+    el.title = BUILD_TIME;
+    el.style.cursor = 'help';
+    el.style.borderBottom = '1px dotted #888';
   }} catch(e) {{}}
 }});
 var THROTTLE_MS   = 600000; // 10 minutes
@@ -1026,7 +1029,7 @@ function showTab(name) {{
 
 <h1>&#9888; CMS SST — Daily Site Report</h1>
 <div class="subtitle" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
-  <span>Generated: {now_str}<span id="local-time"></span> &nbsp;|&nbsp;
+  <span>Generated: <span id="local-time" title="{now_str}"></span> &nbsp;|&nbsp;
     Source: <a href="https://cmssst.web.cern.ch/siteStatus/summary.html" target="_blank" style="color:#1a4a6e">siteStatus/summary.html</a> +
     <a href="https://helpdesk.ggus.eu" target="_blank" style="color:#1a4a6e">GGUS</a>
   </span>
