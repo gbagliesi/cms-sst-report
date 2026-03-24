@@ -1313,7 +1313,7 @@ function showTab(name) {{
                      f'<div class="time-group-hdr">{GROUP_LABELS[grp]}'
                      f' (<span class="tktab-grp-cnt" id="tktab-cnt-{grp}">{len(sites_in_grp)}</span>'
                      f' site{"s" if len(sites_in_grp)!=1 else ""})</div>\n')
-        for sn, cms_tickets, _ in sites_in_grp:
+        for sn, cms_tickets, last_upd in sites_in_grp:
             site_data  = sites_data.get(sn, {})
             ssb_status = site_data.get("ssb_status")
             ssb_badge  = ""
@@ -1324,11 +1324,14 @@ function showTab(name) {{
             summary_url = f"https://cmssst.web.cern.ch/siteStatus/detail.html?site={sn}"
             sn_tier = re.match(r"T(\d)", sn)
             sn_tier_val = sn_tier.group(1) if sn_tier else "?"
+            last_upd_fmt = last_upd[:16].replace("T", " ")
             html_out += (
                 f'<div class="tktab-site" data-tier="{sn_tier_val}">'
                 f'<div class="tktab-site-hdr">'
                 f'<a href="{summary_url}" target="_blank">{sn}</a>'
                 f'{ssb_badge}'
+                f'<span style="font-size:11px;color:#888;font-weight:normal;margin-left:6px">'
+                f'last update: {last_upd_fmt}</span>'
                 f'</div>\n'
             )
             for t in cms_tickets:
