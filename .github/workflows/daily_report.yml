@@ -2,8 +2,8 @@ name: CMS SST Report
 
 on:
   schedule:
-    # Every 2 hours (fallback guarantee)
-    - cron: "0 */2 * * *"
+    # Every 30 minutes, 05:00-19:30 UTC (07:00-21:30 ora italiana)
+    - cron: "0,30 5-19 * * *"
   workflow_dispatch:   # allow manual trigger from GitHub UI
 
 permissions:
