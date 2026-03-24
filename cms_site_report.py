@@ -1318,7 +1318,7 @@ function showTab(name) {{
                 ssb_bg, ssb_fg = SSB_BADGE_COLORS[ssb_status]
                 ssb_badge = (f'<span class="ssb-badge" style="background:{ssb_bg};color:{ssb_fg}"'
                              f' title="SSB site state">SSB: {SSB_BADGE_LABELS[ssb_status]}</span>')
-            summary_url = f"https://cmssst.web.cern.ch/sitereadiness/report.html#{sn}"
+            summary_url = f"https://cmssst.web.cern.ch/siteStatus/detail.html?site={sn}"
             sn_tier = re.match(r"T(\d)", sn)
             sn_tier_val = sn_tier.group(1) if sn_tier else "?"
             html_out += (
