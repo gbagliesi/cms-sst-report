@@ -737,6 +737,18 @@ var GH_REPO       = "gbagliesi/cms-sst-report";
 var GH_WORKFLOW   = "ggus_watcher.yml";
 var BUILD_TIME    = "{now_str}";
 var lastDispatch  = 0;
+
+(function() {{
+  var el = document.getElementById('local-time');
+  if (!el) return;
+  try {{
+    // Parse BUILD_TIME as UTC and format in local timezone
+    var s = BUILD_TIME.replace(' UTC','');
+    var d = new Date(s.replace(' ','T') + 'Z');
+    var local = d.toLocaleString([], {{hour:'2-digit', minute:'2-digit', timeZoneName:'short'}});
+    el.textContent = ' (' + local + ')';
+  }} catch(e) {{}}
+}})();
 var THROTTLE_MS   = 600000; // 10 minutes
 
 function doRefresh(auto) {{
@@ -963,7 +975,7 @@ document.addEventListener('keydown', function(e) {{
 
 <h1>&#9888; CMS SST — Daily Site Report</h1>
 <div class="subtitle" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
-  <span>Generated: {now_str} &nbsp;|&nbsp;
+  <span>Generated: {now_str}<span id="local-time"></span> &nbsp;|&nbsp;
     Source: <a href="https://cmssst.web.cern.ch/siteStatus/summary.html" target="_blank" style="color:#1a4a6e">siteStatus/summary.html</a> +
     <a href="https://helpdesk.ggus.eu" target="_blank" style="color:#1a4a6e">GGUS</a>
   </span>
