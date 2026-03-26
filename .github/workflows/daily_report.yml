@@ -29,7 +29,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: documentation/ggus_article_cache.json
-          key: ggus-article-cache-v5-${{ runner.os }}
+          key: ggus-article-cache-v6-${{ runner.os }}
 
       - name: Generate report
         env:
