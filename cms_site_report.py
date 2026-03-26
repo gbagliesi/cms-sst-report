@@ -91,8 +91,23 @@ def cell_status(bg_color):
 
 
 def strip_tags(text):
-    text = re.sub(r"<[^>]+>", " ", text)
-    return re.sub(r" +", " ", text).strip()
+    # Convert block-level elements and line breaks to newlines before stripping
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"</(p|div|li|tr|blockquote)>", "\n", text, flags=re.IGNORECASE)
+    # Remove all remaining tags
+    text = re.sub(r"<[^>]+>", "", text)
+    # Normalize whitespace within lines, collapse excessive blank lines
+    lines = [re.sub(r"[ \t\xa0]+", " ", line).strip() for line in text.split("\n")]
+    result, blank_count = [], 0
+    for line in lines:
+        if line:
+            blank_count = 0
+            result.append(line)
+        else:
+            blank_count += 1
+            if blank_count <= 2:
+                result.append("")
+    return "\n".join(result).strip()
 
 
 def linkify(text):
@@ -330,7 +345,7 @@ def fetch_ggus_tickets(token, art_cache=None, max_batches=64):
                 entry = {
                     "from":       art.get("from", ""),
                     "created_at": (art.get("created_at") or "")[:19].replace("T", " "),
-                    "body":       html.unescape(strip_tags(art.get("body", "")))[:2000],
+                    "body":       html.unescape(strip_tags(art.get("body", "")))[:5000],
                 }
                 articles.append(entry)
                 art_cache[key] = entry
@@ -581,7 +596,7 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all, trigger_toke
                    border-left: 2px solid #7ab0cc; border-radius: 0 4px 4px 0; }}
   .conv-article-meta {{ font-size: 10px; color: #888; margin-bottom: 4px; }}
   .conv-article-body {{ font-size: 11px; color: #444; white-space: pre-wrap;
-                        max-height: 200px; overflow-y: auto; }}
+                        font-family: monospace; max-height: 300px; overflow-y: auto; }}
 
   /* Ticket drawer */
   #drawer-overlay {{
