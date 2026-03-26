@@ -99,7 +99,7 @@ def strip_tags(text):
     # Normalize whitespace within lines, preserving leading indentation
     lines_raw = []
     for raw_line in text.split("\n"):
-        line = raw_line.replace("\xa0", " ")        # nbsp → space
+        line = raw_line.replace("&nbsp;", " ").replace("&#160;", " ").replace("\xa0", " ")
         lstripped = line.lstrip()
         indent = len(line) - len(lstripped)
         normalized = re.sub(r"[ \t]+", " ", lstripped).rstrip()
