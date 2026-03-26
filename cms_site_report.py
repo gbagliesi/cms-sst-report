@@ -336,6 +336,8 @@ def fetch_ggus_tickets(token, art_cache=None, max_batches=64):
                 art_cache[key] = entry
             except Exception:
                 pass
+        # Sort articles chronologically (API returns them newest-first)
+        articles.sort(key=lambda a: a.get("created_at", ""))
         # first article body (for backward compat / summary display)
         body = articles[0]["body"] if articles else ""
 
