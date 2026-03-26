@@ -96,8 +96,15 @@ def strip_tags(text):
     text = re.sub(r"</(p|div|li|tr|blockquote)>", "\n", text, flags=re.IGNORECASE)
     # Remove all remaining tags
     text = re.sub(r"<[^>]+>", "", text)
-    # Normalize whitespace within lines, collapse excessive blank lines
-    lines = [re.sub(r"[ \t\xa0]+", " ", line).strip() for line in text.split("\n")]
+    # Normalize whitespace within lines, preserving leading indentation
+    lines_raw = []
+    for raw_line in text.split("\n"):
+        line = raw_line.replace("\xa0", " ")        # nbsp → space
+        lstripped = line.lstrip()
+        indent = len(line) - len(lstripped)
+        normalized = re.sub(r"[ \t]+", " ", lstripped).rstrip()
+        lines_raw.append(" " * indent + normalized)
+    lines = lines_raw
     result, blank_count = [], 0
     for line in lines:
         if line:
