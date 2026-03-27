@@ -558,6 +558,8 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all, trigger_toke
   .site-block.hidden-by-tier   {{ display: none; }}
   .site-block.hidden-by-search {{ display: none; }}
   .site-block.hidden-by-ssb    {{ display: none; }}
+  .ticket.hidden-by-search     {{ display: none; }}
+  .tktab-site.hidden-by-search {{ display: none; }}
   #local-time {{
     position: relative; cursor: help;
     border-bottom: 1px dotted #888;
@@ -572,13 +574,40 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all, trigger_toke
     display: none; pointer-events: none; z-index: 200;
   }}
   #local-time:hover::after {{ display: block; }}
-  .site-search-wrap {{ display:flex; align-items:center; gap:6px; }}
+  #global-search-bar {{ display:flex; align-items:center; gap:6px; padding:6px 0 2px; }}
   #site-search {{
     padding: 3px 8px; border: 1px solid #1a4a6e; border-radius: 4px;
-    font-size: 13px; width: 200px; background:#fff; color:#1a1a2e;
+    font-size: 13px; width: 240px; background:#fff; color:#1a1a2e;
   }}
   #site-search:focus {{ outline: 2px solid #1a4a6e; }}
-  #search-hint {{ font-size: 12px; color: #888; font-style: italic; }}
+  #search-hint {{ font-size: 12px; font-style: italic; }}
+  .search-help-tip {{ position:relative; display:inline-flex; align-items:center; }}
+  .search-help-icon {{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:16px; height:16px; border-radius:50%;
+    background:#7ab0cc; color:#fff; font-size:11px; font-weight:bold;
+    cursor:help; user-select:none; flex-shrink:0;
+  }}
+  .search-help-popup {{
+    display:none; position:absolute; top:calc(100% + 8px); left:50%;
+    transform:translateX(-30%);
+    background:#1a4a6e; color:#fff;
+    padding:10px 14px; border-radius:6px;
+    font-size:12px; white-space:nowrap; line-height:1.9;
+    z-index:300; pointer-events:none;
+    box-shadow:0 4px 14px rgba(0,0,0,0.3);
+  }}
+  .search-help-popup::before {{
+    content:''; position:absolute; bottom:100%; left:30%;
+    transform:translateX(-50%);
+    border:6px solid transparent; border-bottom-color:#1a4a6e;
+  }}
+  .search-help-popup code {{
+    background:rgba(255,255,255,0.18); padding:1px 5px;
+    border-radius:3px; font-family:monospace; font-size:11px;
+  }}
+  .search-help-popup .sh-dim {{ color:#aad0ee; font-size:11px; }}
+  .search-help-tip:hover .search-help-popup {{ display:block; }}
   .tier-ctrl {{
     display: flex; align-items: center; gap: 10px; margin-left: 16px;
     font-size: 12px; color: #555;
@@ -604,6 +633,7 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all, trigger_toke
   .conv-article-meta {{ font-size: 10px; color: #888; margin-bottom: 4px; }}
   .conv-article-body {{ font-size: 11px; color: #444; white-space: pre-wrap;
                         font-family: monospace; max-height: 300px; overflow-y: auto; }}
+  mark.search-hl {{ background: #ffe066; color: #111; border-radius: 2px; padding: 0 1px; font-style: normal; }}
 
   /* Ticket drawer */
   #drawer-overlay {{
@@ -659,24 +689,187 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all, trigger_toke
 <script>
 var cmsFilterSave = null;
 
+// --- Search helpers ---
+function detectSearchMode(q) {{
+  if (/^t[123]_/i.test(q)) return 'site';
+  if (/^#\\d+$/.test(q) || /^\\d{{6,}}$/.test(q)) return 'ticket';
+  return 'fulltext';
+}}
+
+function ticketMatchesNumber(t, q) {{
+  var num = q.replace(/^#/, '');
+  return String(t.number || '').includes(num) || String(t.id || '').includes(num);
+}}
+
+function ticketMatchesFulltext(t, q) {{
+  if ((t.title || '').toLowerCase().includes(q)) return true;
+  var arts = t.articles || [];
+  for (var i = 0; i < arts.length; i++) {{
+    if ((arts[i].body || '').toLowerCase().includes(q)) return true;
+    if ((arts[i].from || '').toLowerCase().includes(q)) return true;
+  }}
+  return false;
+}}
+
+function updateSearchHint(raw, mode) {{
+  var hint = document.getElementById('search-hint');
+  if (!hint) return;
+  if (!raw) {{ hint.style.display = 'none'; return; }}
+  if (raw.length < 3) {{
+    hint.textContent = 'min. 3 characters';
+    hint.style.color = '#aaa'; hint.style.display = '';
+    return;
+  }}
+  var labels = {{
+    site:     'searching by site name',
+    ticket:   'searching by ticket number',
+    fulltext: 'searching in title, body and author'
+  }};
+  var colors = {{ site: '#1a4a6e', ticket: '#555', fulltext: '#777' }};
+  hint.textContent = labels[mode] || '';
+  hint.style.color = colors[mode] || '#888';
+  hint.style.display = '';
+}}
+
+function escapeRegex(s) {{
+  return s.replace(/[.*+?^${{}}()|[\\]\\\\]/g, '\\\\$&');
+}}
+
+function highlightHTML(htmlStr, q) {{
+  var re = new RegExp('(' + escapeRegex(q) + ')', 'gi');
+  return htmlStr.replace(/(<[^>]*>)|([^<]+)/g, function(m, tag, text) {{
+    if (tag) return tag;
+    return text.replace(re, '<mark class="search-hl">$1</mark>');
+  }});
+}}
+
+function applyHighlight(ticketDiv, mode, q) {{
+  if (mode === 'ticket') {{
+    var idEl = ticketDiv.querySelector('.ticket-id');
+    if (idEl && !idEl.dataset.orig) {{
+      idEl.dataset.orig = idEl.innerHTML;
+      idEl.innerHTML = highlightHTML(idEl.innerHTML, q.replace(/^#/, ''));
+    }}
+    return;
+  }}
+  var titleEl = ticketDiv.querySelector('.ticket-title');
+  if (titleEl && !titleEl.dataset.orig) {{
+    titleEl.dataset.orig = titleEl.innerHTML;
+    titleEl.innerHTML = highlightHTML(titleEl.innerHTML, q);
+  }}
+  var convDet = ticketDiv.querySelector('details.ticket-conv');
+  if (!convDet) return;
+  var convMatched = false;
+  convDet.querySelectorAll('.conv-article-body, .conv-article-meta').forEach(function(el) {{
+    if (!el.dataset.orig) {{
+      var orig = el.innerHTML;
+      el.dataset.orig = orig;
+      var hl = highlightHTML(orig, q);
+      el.innerHTML = hl;
+      if (hl !== orig) convMatched = true;
+    }}
+  }});
+  if (convMatched) convDet.open = true;
+}}
+
+function clearHighlights() {{
+  document.querySelectorAll('[data-orig]').forEach(function(el) {{
+    el.innerHTML = el.dataset.orig;
+    delete el.dataset.orig;
+  }});
+  document.querySelectorAll('details.ticket-conv').forEach(function(det) {{
+    det.open = false;
+  }});
+}}
+
+function clearTicketSearch() {{
+  clearHighlights();
+  document.querySelectorAll('.ticket.hidden-by-search').forEach(function(t) {{
+    t.classList.remove('hidden-by-search');
+  }});
+  document.querySelectorAll('details.ticket-group').forEach(function(det) {{
+    det.open = det.getAttribute('data-group') === 'cms';
+  }});
+  document.querySelectorAll('.tktab-site.hidden-by-search').forEach(function(s) {{
+    s.classList.remove('hidden-by-search');
+  }});
+}}
+
+function applyTicketSearchToBlock(container, mode, q) {{
+  var sn = container.getAttribute('data-site') || '';
+  if (mode === 'site') return sn.toLowerCase().includes(q);
+  var tickets = (window.TICKET_DATA && window.TICKET_DATA[sn]) || [];
+  var match = false, matchingNums = {{}};
+  tickets.forEach(function(t) {{
+    var tm = mode === 'ticket' ? ticketMatchesNumber(t, q) : ticketMatchesFulltext(t, q);
+    if (tm) {{ match = true; matchingNums[String(t.number)] = true; }}
+  }});
+  container.querySelectorAll('.ticket[data-tnum]').forEach(function(tDiv) {{
+    var isMatch = !!matchingNums[tDiv.getAttribute('data-tnum')];
+    tDiv.classList.toggle('hidden-by-search', !isMatch);
+    if (isMatch) applyHighlight(tDiv, mode, q);
+  }});
+  if (container.classList.contains('site-block')) {{
+    container.querySelectorAll('details.ticket-group').forEach(function(det) {{
+      var hasVisible = !!det.querySelector('.ticket[data-tnum]:not(.hidden-by-search)');
+      if (hasVisible) det.open = true;
+    }});
+  }}
+  return match;
+}}
+
+function applyTktabSearch(mode, q) {{
+  var tierActive = {{}};
+  document.querySelectorAll('.tktab-tier-chk').forEach(function(cb) {{
+    tierActive[cb.value] = cb.checked;
+  }});
+  document.querySelectorAll('[id^="tktab-grp-"]').forEach(function(grpEl) {{
+    var visible = 0;
+    grpEl.querySelectorAll('.tktab-site').forEach(function(site) {{
+      site.style.display = '';
+      var tier = site.getAttribute('data-tier');
+      var match = false;
+      if (tierActive[tier] !== false) {{
+        var sn = site.getAttribute('data-site') || '';
+        if (mode === 'site') {{
+          match = sn.toLowerCase().includes(q);
+        }} else {{
+          var allTickets = (window.TICKET_DATA && window.TICKET_DATA[sn]) || [];
+          var matchingNums = {{}};
+          allTickets.forEach(function(t) {{
+            if (!t.is_cms) return;
+            var tm = mode === 'ticket' ? ticketMatchesNumber(t, q) : ticketMatchesFulltext(t, q);
+            if (tm) {{ match = true; matchingNums[String(t.number)] = true; }}
+          }});
+          site.querySelectorAll('.ticket[data-tnum]').forEach(function(tDiv) {{
+            var isMatch = !!matchingNums[tDiv.getAttribute('data-tnum')];
+            tDiv.classList.toggle('hidden-by-search', !isMatch);
+            if (isMatch) applyHighlight(tDiv, mode, q);
+          }});
+        }}
+      }}
+      site.classList.toggle('hidden-by-search', !match);
+      if (match) visible++;
+    }});
+    var cnt = grpEl.querySelector('.tktab-grp-cnt');
+    if (cnt) cnt.textContent = visible;
+    grpEl.style.display = visible ? '' : 'none';
+  }});
+}}
+
 function applyFilters() {{
   var n       = parseInt(document.getElementById('days-sel').value);
   var chkErr  = document.getElementById('filter-errors').checked;
   var chkOk   = document.getElementById('filter-ok').checked;
   var ssbFilter = document.getElementById('ssb-sel').value;
   var chkCmsTickets = document.getElementById('filter-cms-tickets').checked;
-  var search  = document.getElementById('site-search').value.trim().toLowerCase();
+  var rawSearch = document.getElementById('site-search').value.trim();
+  var search  = rawSearch.toLowerCase();
   var searchActive = search.length >= 3;
-
-  // search hint
-  var hint = document.getElementById('search-hint');
-  if (hint) {{
-    if (search.length > 0 && search.length < 3) {{
-      hint.textContent = 'min. 3 characters'; hint.style.display = '';
-    }} else {{
-      hint.style.display = 'none';
-    }}
-  }}
+  var searchMode = searchActive ? detectSearchMode(search) : null;
+  updateSearchHint(rawSearch, searchMode);
+  clearHighlights();
+  if (!searchActive) clearTicketSearch();
 
   // which tiers are selected
   var activeTiers = {{}};
@@ -713,12 +906,7 @@ function applyFilters() {{
     var hasCmsTickets = block.getAttribute('data-cms-tickets') === '1';
 
     if (searchActive) {{
-      // search mode: ignore all other filters, match by site name or ticket number
-      var siteName   = (block.getAttribute('data-site') || '').toLowerCase();
-      var ticketNums = (block.getAttribute('data-ticket-nums') || '');
-      var isTicketSearch = /\\d{{3}}/.test(search);
-      var match = siteName.includes(search) ||
-                  (isTicketSearch && ticketNums.split(' ').some(function(n) {{ return n.includes(search); }}));
+      var match = applyTicketSearchToBlock(block, searchMode, search);
       block.classList.toggle('hidden-by-search', !match);
       block.classList.remove('hidden-by-tier');
       block.classList.remove('hidden-by-filter');
@@ -790,6 +978,7 @@ function applyFilters() {{
   if (elShown) elShown.textContent = shownCount;
   if (elErr)   elErr.textContent   = shownErrors;
   if (elTotal) elTotal.textContent = tierCount;
+  if (searchActive) applyTktabSearch(searchMode, search);
 }}
 
 var TRIGGER_TOKEN = "{trigger_token[::-1]}"["\x73\x70\x6c\x69\x74"]("")["\x72\x65\x76\x65\x72\x73\x65"]()["\x6a\x6f\x69\x6e"]("");
@@ -1034,6 +1223,9 @@ document.addEventListener('keydown', function(e) {{
 }});
 
 function applyTktabTierFilter() {{
+  var searchInput = document.getElementById('site-search');
+  var q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  if (q.length >= 3) {{ applyTktabSearch(detectSearchMode(q), q); return; }}
   var active = {{}};
   document.querySelectorAll('.tktab-tier-chk').forEach(function(cb) {{
     active[cb.value] = cb.checked;
@@ -1041,6 +1233,7 @@ function applyTktabTierFilter() {{
   document.querySelectorAll('[id^="tktab-grp-"]').forEach(function(grpEl) {{
     var visible = 0;
     grpEl.querySelectorAll('.tktab-site').forEach(function(site) {{
+      site.classList.remove('hidden-by-search');
       var show = active[site.getAttribute('data-tier')] !== false;
       site.style.display = show ? '' : 'none';
       if (show) visible++;
@@ -1076,6 +1269,21 @@ function showTab(name) {{
 <div class="tab-bar">
   <button class="tab-btn active" data-tab="sites"   onclick="showTab('sites')">Sites</button>
   <button class="tab-btn"        data-tab="tickets" onclick="showTab('tickets')">CMS Tickets by time</button>
+</div>
+<div id="global-search-bar">
+  <input type="text" id="site-search" placeholder="&#128269; Search sites, tickets, content..." autocomplete="off" spellcheck="false">
+  <div class="search-help-tip">
+    <span class="search-help-icon">?</span>
+    <div class="search-help-popup">
+      <b>Search modes</b> &mdash; auto-detected:<br>
+      <code>T2_IT_Bari</code> &nbsp;&rarr;&nbsp; site name<br>
+      <code>#1001954</code> &nbsp;&rarr;&nbsp; ticket number (# prefix)<br>
+      <code>1001954</code> &nbsp;&rarr;&nbsp; ticket number (6+ digits)<br>
+      <code>SAM failure</code> &nbsp;&rarr;&nbsp; title, body and author<br>
+      <span class="sh-dim">Min. 3 characters &nbsp;&bull;&nbsp; matches highlighted in yellow</span>
+    </div>
+  </div>
+  <span id="search-hint" style="display:none"></span>
 </div>
 <div id="sites-toolbar">
 <div class="subtitle" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px;">
@@ -1113,10 +1321,6 @@ function showTab(name) {{
     <input type="checkbox" id="filter-cms-tickets">
     CMS tickets
   </label>
-  <div class="site-search-wrap">
-    <input type="text" id="site-search" placeholder="&#128269; Search site or ticket number..." autocomplete="off" spellcheck="false">
-    <span id="search-hint" style="display:none"></span>
-  </div>
 </div>
 
 <div class="summary">
@@ -1195,7 +1399,7 @@ function showTab(name) {{
                 f'</details>'
             )
         return f"""
-    <div class="ticket {age_class}{hl_class}">
+    <div class="ticket {age_class}{hl_class}" data-tnum="{html.escape(str(t.get('number', '')))}">
       <div class="ticket-header">
         {vo_badge}
         <span class="ticket-id"><a href="{t_url}" target="_blank">#{t["number"]} (id:{t["id"]})</a></span>
@@ -1281,13 +1485,13 @@ function showTab(name) {{
             html_out += f'<h3>Open GGUS tickets ({n_tickets})</h3>'
 
             if cms_tickets:
-                html_out += f'<details class="ticket-group" open><summary>CMS tickets ({len(cms_tickets)})</summary>'
+                html_out += f'<details class="ticket-group" data-group="cms" open><summary>CMS tickets ({len(cms_tickets)})</summary>'
                 for t in cms_tickets:
                     html_out += render_ticket(t)
                 html_out += "\n</details>"
 
             if wlcg_tickets:
-                html_out += f'<details class="ticket-group"><summary>WLCG tickets ({len(wlcg_tickets)})</summary>'
+                html_out += f'<details class="ticket-group" data-group="wlcg"><summary>WLCG tickets ({len(wlcg_tickets)})</summary>'
                 for t in wlcg_tickets:
                     html_out += render_ticket(t)
                 html_out += "\n</details>"
@@ -1364,7 +1568,7 @@ function showTab(name) {{
             sn_tier_val = sn_tier.group(1) if sn_tier else "?"
             last_upd_fmt = last_upd[:16].replace("T", " ")
             html_out += (
-                f'<div class="tktab-site" data-tier="{sn_tier_val}">'
+                f'<div class="tktab-site" data-tier="{sn_tier_val}" data-site="{sn}">'
                 f'<div class="tktab-site-hdr">'
                 f'<a href="{summary_url}" target="_blank">{sn}</a>'
                 f'{ssb_badge}'
