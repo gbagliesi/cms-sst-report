@@ -15,6 +15,7 @@ cms_local_report.html
 # Local macOS app (PyWebView) — not for GitHub
 cms_app.py
 run_app.command
+cms_icon.png
 .venv/
 
 # Python
