@@ -16,6 +16,8 @@ cms_local_report.html
 cms_app.py
 run_app.command
 cms_icon.png
+AppIcon.iconset/
+CMS SST Report.app/
 .venv/
 
 # Python
