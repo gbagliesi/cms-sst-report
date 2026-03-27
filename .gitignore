@@ -10,6 +10,11 @@ README_CMS_SST_Monitoring.md
 
 # Local output (published version lives in docs/)
 cms_report.html
+cms_local_report.html
+
+# Local macOS app (PyWebView) — not for GitHub
+cms_app.py
+run_app.command
 
 # Python
 __pycache__/

@@ -80,34 +80,53 @@ class ReportHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+def run_server(port=DEFAULT_PORT, days=3, open_browser=True, ready_event=None):
+    """Start the report server (blocking). Can be called from external code.
+
+    Args:
+        port:         TCP port to listen on.
+        days:         Default look-back window passed to cms_site_report.py.
+        open_browser: If True, open the system browser after startup.
+        ready_event:  Optional threading.Event set once the server socket is bound
+                      and the initial report has been generated.
+    """
+    print("Generating initial report...", flush=True)
+    cmd = ['python3', 'cms_site_report.py', '--out', str(REPORT_PATH),
+           '--days', str(days)]
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        print("[ERROR] Report generation failed. Check output above.", file=sys.stderr)
+        return
+
+    url = f'http://localhost:{port}/'
+    server = http.server.HTTPServer(('localhost', port), ReportHandler)
+    server.days = days
+
+    print(f"Serving at {url}", flush=True)
+    if open_browser:
+        print("Press Ctrl+C to stop.\n")
+
+    if ready_event is not None:
+        ready_event.set()
+
+    if open_browser:
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nServer stopped.")
+    finally:
+        server.server_close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Local CMS SST report server")
     parser.add_argument('--port', type=int, default=DEFAULT_PORT)
     parser.add_argument('--days', type=int, default=3,
                         help='Look-back window in days for report generation')
     args = parser.parse_args()
-
-    # Generate initial report
-    print("Generating initial report...", flush=True)
-    cmd = ['python3', 'cms_site_report.py', '--out', str(REPORT_PATH),
-           '--days', str(args.days)]
-    result = subprocess.run(cmd)
-    if result.returncode != 0:
-        print("[ERROR] Report generation failed. Check output above.", file=sys.stderr)
-        sys.exit(1)
-
-    url = f'http://localhost:{args.port}/'
-    server = http.server.HTTPServer(('localhost', args.port), ReportHandler)
-    server.days = args.days
-
-    print(f"Serving at {url}")
-    print("Press Ctrl+C to stop.\n")
-    threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nServer stopped.")
+    run_server(port=args.port, days=args.days, open_browser=True)
 
 
 if __name__ == '__main__':
