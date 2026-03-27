@@ -34,7 +34,7 @@ from pathlib import Path
 REPORT_URL   = "https://cmssst.web.cern.ch/sitereadiness/report.html"
 GGUS_API     = "https://helpdesk.ggus.eu/api/v1"
 GGUS_TICKET_URL = "https://helpdesk.ggus.eu/#ticket/zoom/{id}"
-MAX_DAYS = 7   # maximum days parsed and embedded in the report
+MAX_DAYS = 16  # maximum days parsed and embedded in the report
 ARTICLE_CACHE = Path("documentation/ggus_article_cache.json")
 
 COLOR_OK       = "#80FF80"
