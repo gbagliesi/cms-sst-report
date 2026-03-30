@@ -633,6 +633,11 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all, trigger_toke
   .conv-article-meta {{ font-size: 10px; color: #888; margin-bottom: 4px; }}
   .conv-article-body {{ font-size: 11px; color: #444; white-space: pre-wrap;
                         font-family: monospace; max-height: 300px; overflow-y: auto; }}
+  .conv-articles-scroll {{ max-height: 420px; overflow-y: auto; border: 1px solid #c8dcea;
+                           border-radius: 4px; padding: 4px 6px; margin-top: 4px; }}
+  .conv-close-bar {{ text-align: right; margin-top: 6px; padding-top: 4px; border-top: 1px solid #c8dcea; }}
+  .conv-close-link {{ font-size: 11px; color: #2471a3; text-decoration: none; cursor: pointer; }}
+  .conv-close-link:hover {{ color: #1a4a6e; }}
   mark.search-hl {{ background: #ffe066; color: #111; border-radius: 2px; padding: 0 1px; font-style: normal; }}
 
   /* Ticket drawer */
@@ -1181,7 +1186,9 @@ function renderDrawerTicket(t) {{
     }});
     convHtml = '<details class="ticket-conv"><summary>Conversation ('
       + nArt + ' message' + (nArt !== 1 ? 's' : '') + ')</summary>'
-      + parts.join('') + '</details>';
+      + '<div class="conv-articles-scroll">' + parts.join('') + '</div>'
+      + '<div class="conv-close-bar"><a href="#" class="conv-close-link" onclick="this.closest(&apos;details&apos;).removeAttribute(&apos;open&apos;);return false;">&#9650; close</a></div>'
+      + '</details>';
   }}
   return '<div class="ticket ' + ageClass + '">'
     + '<div class="ticket-header">' + voBadge
@@ -1395,7 +1402,8 @@ function showTab(name) {{
             conv_html = (
                 f'<details class="ticket-conv">'
                 f'<summary>Conversation ({n_art} message{"s" if n_art != 1 else ""})</summary>'
-                f'{conv_inner}'
+                f'<div class="conv-articles-scroll">{conv_inner}</div>'
+                f'<div class="conv-close-bar"><a href="#" class="conv-close-link" onclick="this.closest(\'details\').removeAttribute(\'open\');return false;">&#9650; close</a></div>'
                 f'</details>'
             )
         return f"""
