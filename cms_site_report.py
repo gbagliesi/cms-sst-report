@@ -632,7 +632,7 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all, trigger_toke
                    border-left: 2px solid #7ab0cc; border-radius: 0 4px 4px 0; }}
   .conv-article-meta {{ font-size: 10px; color: #888; margin-bottom: 4px; }}
   .conv-article-body {{ font-size: 11px; color: #444; white-space: pre-wrap;
-                        font-family: monospace; max-height: 300px; overflow-y: auto; }}
+                        font-family: monospace; }}
   .conv-articles-scroll {{ max-height: 420px; overflow-y: auto; border: 1px solid #c8dcea;
                            border-radius: 4px; padding: 4px 6px; margin-top: 4px; }}
   .conv-close-bar {{ text-align: right; margin-top: 6px; padding-top: 4px; border-top: 1px solid #c8dcea; }}
