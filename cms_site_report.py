@@ -118,8 +118,14 @@ def strip_tags(text):
 
 
 def linkify(text):
-    """Escape text for HTML and turn URLs into clickable links."""
+    """Escape text for HTML and turn URLs into clickable links.
+
+    Newline handling: 3+ consecutive newlines → blank line (<br><br>);
+    1-2 newlines → simple line break (<br>). Spaces are preserved for
+    monospace alignment.
+    """
     url_re = re.compile(r"(https?://\S+)")
+    text = re.sub(r"\r\n", "\n", text)
     parts = url_re.split(text)
     out = []
     for i, part in enumerate(parts):
@@ -127,7 +133,13 @@ def linkify(text):
             esc = html.escape(part)
             out.append(f'<a href="{esc}" target="_blank" style="color:#2471a3">{esc}</a>')
         else:
-            out.append(html.escape(part))
+            part = re.sub(r"\n[ \t]*\n[ \t]*\n+", "\x00PARA\x00", part)
+            part = re.sub(r"\n[ \t]*\n", "\x00BR\x00", part)
+            part = part.replace("\n", "\x00BR\x00")
+            part = html.escape(part)
+            part = part.replace("\x00PARA\x00", "<br><br>")
+            part = part.replace("\x00BR\x00", "<br>")
+            out.append(part)
     return "".join(out)
 
 
@@ -1153,13 +1165,20 @@ function escHtml(s) {{
 
 function linkifyText(raw) {{
   var urlRe = /(https?:[/][/][^\\s]+)/g;
-  var parts = String(raw).split(urlRe);
+  var text = String(raw).replace(/\\r\\n/g, '\\n');
+  var parts = text.split(urlRe);
   return parts.map(function(part, i) {{
     if (i % 2 === 1) {{
       var esc = escHtml(part);
       return '<a href="' + esc + '" target="_blank" style="color:#2471a3">' + esc + '</a>';
     }}
-    return escHtml(part);
+    part = part.replace(/\\n[ \\t]*\\n[ \\t]*\\n+/g, '\\x00PARA\\x00');
+    part = part.replace(/\\n[ \\t]*\\n/g, '\\x00BR\\x00');
+    part = part.replace(/\\n/g, '\\x00BR\\x00');
+    part = escHtml(part);
+    part = part.replace(/\\x00PARA\\x00/g, '<br><br>');
+    part = part.replace(/\\x00BR\\x00/g, '<br>');
+    return part;
   }}).join('');
 }}
 
