@@ -10,7 +10,7 @@ Data sources:
 Usage:
   python3 cms_site_report.py [--token FILE] [--days N] [--out FILE] [--all]
 
-  --token FILE   file containing the GGUS Bearer token (default: documentation/token_ggus)
+  --token FILE   file containing the GGUS Bearer token (default: data/token_ggus)
   --days N       look back N days for metric issues (default: 3)
   --out FILE     HTML output file (default: cms_report.html)
   --all          include all sites, not only those with problems
@@ -35,7 +35,7 @@ REPORT_URL   = "https://cmssst.web.cern.ch/sitereadiness/report.html"
 GGUS_API     = "https://helpdesk.ggus.eu/api/v1"
 GGUS_TICKET_URL = "https://helpdesk.ggus.eu/#ticket/zoom/{id}"
 MAX_DAYS = 16  # maximum days parsed and embedded in the report
-ARTICLE_CACHE = Path("documentation/ggus_article_cache.json")
+ARTICLE_CACHE = Path("data/ggus_article_cache.json")
 
 COLOR_OK       = "#80FF80"
 COLOR_WARNING  = "#FFFF00"
@@ -1637,7 +1637,7 @@ function showTab(name) {{
 # ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description="CMS SST Daily Problem Report")
-    parser.add_argument("--token", default="documentation/token_ggus",
+    parser.add_argument("--token", default="data/token_ggus",
                         help="File containing the GGUS Bearer token")
     parser.add_argument("--days", type=int, default=3,
                         help=f"Default day window shown in the UI (default: 3, max: {MAX_DAYS})")

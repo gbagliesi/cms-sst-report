@@ -28,8 +28,8 @@ jobs:
       - name: Restore article cache
         uses: actions/cache@v4
         with:
-          path: documentation/ggus_article_cache.json
-          key: ggus-article-cache-v6-${{ runner.os }}
+          path: data/ggus_article_cache.json
+          key: ggus-article-cache-v7-${{ runner.os }}
 
       - name: Generate report
         env:

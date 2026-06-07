@@ -3,7 +3,7 @@ CLAUDE.md
 memory/
 
 # Local documentation dumps (HTML, source references, tokens)
-documentation/
+data/
 
 # Grid certificates / private keys — never commit (live in ~/.globus/)
 *.p12
