@@ -21,6 +21,8 @@ cms_local_report.html
 
 # Local macOS app (PyWebView) — not for GitHub
 cms_app.py
+# Local dev server (serves the report on localhost) — not for GitHub
+cms_local_server.py
 run_app.command
 cms_icon.png
 AppIcon.iconset/
