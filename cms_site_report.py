@@ -37,6 +37,19 @@ GGUS_TICKET_URL = "https://helpdesk.ggus.eu/#ticket/zoom/{id}"
 MAX_DAYS = 16  # maximum days parsed and embedded in the report
 ARTICLE_CACHE = Path("data/ggus_article_cache.json")
 
+# Heuristic to spot tickets that are evidently CMS by their content even when the
+# submitter forgot to set vo_support=cms (so GGUS tags them generic/WLCG and they
+# would otherwise slip past the CMS views). Only applied when the VO field is empty
+# (a ticket explicitly assigned to another experiment's VO is left alone). Tokens are
+# CMS-operational enough not to fire on generic WLCG/EGI broadcasts (IPv6, VOMS, ARC,
+# accounting, perfSONAR ...).
+CMS_EVIDENCE_RE = re.compile(
+    r"cms-rucio|CMS Data Management|\bCMS DM\b|CMS Transfer|PhEDEx|\bPnR\b|"
+    r"Production and Reprocessing|glideinWMS|/store/|unmerged|gridpack|on behalf of CMS|"
+    r"WMAgent|\bCRAB\b|CMS global pool|CMS OpenData|cmssam|cms-rucio-webui",
+    re.I,
+)
+
 COLOR_OK       = "#80FF80"
 COLOR_WARNING  = "#FFFF00"
 COLOR_ERROR    = "#FF0000"
@@ -375,10 +388,21 @@ def fetch_ggus_tickets(token, art_cache=None, max_batches=64):
         # first article body (for backward compat / summary display)
         body = articles[0]["body"] if articles else ""
 
-        # Classifica: CMS VO se vo_support=='cms' o area inizia con 'CMS'
-        vo = (t.get("vo_support") or "").lower()
+        # Classifica: CMS VO se vo_support=='cms' o area inizia con 'CMS'.
+        # vo_missing: contenuto palesemente CMS ma VO non impostata (vuota) -> lo
+        # trattiamo come CMS (entra nei conteggi/viste CMS) ma con badge dedicato,
+        # cosi' non sfugge e si capisce che il ticket va corretto (vo_support=cms).
+        vo = (t.get("vo_support") or "").strip().lower()
         area = (t.get("area") or "")
-        is_cms = (vo == "cms") or area.upper().startswith("CMS")
+        real_cms = (vo == "cms") or area.upper().startswith("CMS")
+        vo_missing = False
+        if not real_cms and vo in ("", "none"):
+            blob = "\n".join(
+                [t.get("title", ""), t.get("created_by", "")]
+                + [a.get("body", "") for a in articles]
+            )
+            vo_missing = bool(CMS_EVIDENCE_RE.search(blob))
+        is_cms = real_cms or vo_missing
 
         entry = {
             "id":         t["id"],
@@ -391,6 +415,7 @@ def fetch_ggus_tickets(token, art_cache=None, max_batches=64):
             "body":       body,
             "articles":   articles,
             "is_cms":     is_cms,
+            "vo_missing": vo_missing,
         }
         by_site.setdefault(cms_site, []).append(entry)
 
@@ -535,6 +560,7 @@ def generate_html(sites_data, ggus_by_site, problem_days, show_all, trigger_toke
                border-radius: 3px; flex-shrink: 0; }}
   .vo-cms  {{ background: #d6eaf8; color: #1a4a6e; border: 1px solid #7ab0cc; }}
   .vo-wlcg {{ background: #d5f5e3; color: #1e5631; border: 1px solid #58d68d; }}
+  .vo-missing {{ background: #ffe0b2; color: #8a3b00; border: 1px solid #ff8c00; }}
 
   details.ticket-group {{ margin-top: 6px; }}
   details.ticket-group > summary {{
@@ -1184,9 +1210,11 @@ function linkifyText(raw) {{
 
 function renderDrawerTicket(t) {{
   var ageClass = t.days_open > 30 ? 'ticket-old' : (t.days_open > 7 ? 'ticket-week' : 'ticket-new');
-  var voBadge = t.is_cms
-    ? '<span class="vo-badge vo-cms">CMS</span>'
-    : '<span class="vo-badge vo-wlcg">WLCG</span>';
+  var voBadge = t.vo_missing
+    ? '<span class="vo-badge vo-missing" title="Content is clearly CMS but the GGUS ticket has no CMS VO set — fix vo_support=cms">CMS [VO missing]</span>'
+    : (t.is_cms
+        ? '<span class="vo-badge vo-cms">CMS</span>'
+        : '<span class="vo-badge vo-wlcg">WLCG</span>');
   var tUrl = 'https://helpdesk.ggus.eu/#ticket/zoom/' + t.id;
   var openedHtml = t.days_open > 90
     ? '<span style="color:#cc4400;font-weight:bold">' + escHtml(t.created_at) + ' (' + t.days_open + 'd ago)</span>'
@@ -1224,12 +1252,13 @@ function renderDrawerTicket(t) {{
 function openDrawer(siteName, filter) {{
   var tickets = (window.TICKET_DATA && window.TICKET_DATA[siteName]) || [];
   var filtered;
-  if      (filter === 'cms')  filtered = tickets.filter(function(t) {{ return t.is_cms; }});
-  else if (filter === 'wlcg') filtered = tickets.filter(function(t) {{ return !t.is_cms; }});
-  else if (filter === 'old')  filtered = tickets.filter(function(t) {{ return t.days_open > 90; }});
-  else                        filtered = tickets.slice();
+  if      (filter === 'cms')       filtered = tickets.filter(function(t) {{ return t.is_cms; }});
+  else if (filter === 'wlcg')      filtered = tickets.filter(function(t) {{ return !t.is_cms; }});
+  else if (filter === 'vomissing') filtered = tickets.filter(function(t) {{ return t.vo_missing; }});
+  else if (filter === 'old')       filtered = tickets.filter(function(t) {{ return t.days_open > 90; }});
+  else                             filtered = tickets.slice();
   filtered.sort(function(a, b) {{ return b.created_at < a.created_at ? -1 : b.created_at > a.created_at ? 1 : 0; }});
-  var labels = {{ all:'All', cms:'CMS', wlcg:'WLCG', old:'Old >3mo' }};
+  var labels = {{ all:'All', cms:'CMS', wlcg:'WLCG', vomissing:'CMS [VO missing]', old:'Old >3mo' }};
   document.getElementById('drawer-title').textContent =
     siteName + ' — ' + (labels[filter] || filter) + ' tickets (' + filtered.length + ')';
   document.getElementById('drawer-body').innerHTML = filtered.length
@@ -1379,6 +1408,7 @@ function showTab(name) {{
                 "updated_at": t.get("updated_at", "")[:10],
                 "days_open":  days_ago(t.get("created_at", "")),
                 "is_cms":     t.get("is_cms", False),
+                "vo_missing": t.get("vo_missing", False),
                 "articles": [
                     {"from": a.get("from", ""), "created_at": a.get("created_at", "")[:16], "body": a.get("body", "")}
                     for a in t.get("articles", [])
@@ -1399,8 +1429,14 @@ function showTab(name) {{
         created   = t["created_at"][:16].replace("T", " ")
         updated   = t["updated_at"][:16].replace("T", " ")
         days_open = days_ago(t["created_at"])
-        vo_badge  = '<span class="vo-badge vo-cms">CMS</span>' if t.get("is_cms") \
-                    else '<span class="vo-badge vo-wlcg">WLCG</span>'
+        if t.get("vo_missing"):
+            vo_badge = ('<span class="vo-badge vo-missing" title="Content is clearly CMS '
+                        'but the GGUS ticket has no CMS VO set &mdash; fix vo_support=cms">'
+                        'CMS [VO missing]</span>')
+        elif t.get("is_cms"):
+            vo_badge = '<span class="vo-badge vo-cms">CMS</span>'
+        else:
+            vo_badge = '<span class="vo-badge vo-wlcg">WLCG</span>'
         articles  = t.get("articles", [])
         n_art     = len(articles)
         conv_html = ""
@@ -1460,12 +1496,14 @@ function showTab(name) {{
 
         n_cms  = sum(1 for t in tickets if t.get("is_cms"))
         n_wlcg = n_tickets - n_cms
+        n_vomiss = sum(1 for t in tickets if t.get("vo_missing"))
         ticket_nums = " ".join(str(t.get("number", "")) for t in tickets if t.get("number"))
         n_old  = sum(1 for t in tickets if days_ago(t["created_at"]) > 90)
         if n_tickets:
             sn_js = site_name.replace("'", "\\'")
             ticket_stat  = f'&#128190; <span class="tstat-link" onclick="openDrawer(\'{sn_js}\',\'all\')">tickets: {n_tickets}</span>'
             if n_cms:  ticket_stat += f', <span class="tstat-link" onclick="openDrawer(\'{sn_js}\',\'cms\')">CMS: {n_cms}</span>'
+            if n_vomiss: ticket_stat += f', <span class="tstat-link" onclick="openDrawer(\'{sn_js}\',\'vomissing\')" style="color:#8a3b00;font-weight:bold" title="CMS tickets with no CMS VO set in GGUS">&#9888; VO missing: {n_vomiss}</span>'
             if n_wlcg: ticket_stat += f', <span class="tstat-link" onclick="openDrawer(\'{sn_js}\',\'wlcg\')">WLCG: {n_wlcg}</span>'
             if n_old:  ticket_stat += f', <span class="tstat-link" onclick="openDrawer(\'{sn_js}\',\'old\')" style="color:#ffaa66">(old &gt;3mo: {n_old})</span>'
         else:
