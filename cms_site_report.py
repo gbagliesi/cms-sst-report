@@ -21,6 +21,7 @@ Token resolution order: --token file > GGUS_TOKEN environment variable
 import argparse
 import html
 import json
+import os
 import re
 import sys
 import urllib.request
@@ -299,13 +300,32 @@ def parse_report(content, problem_days=MAX_DAYS):
 # ---------------------------------------------------------------------------
 # Article cache helpers
 # ---------------------------------------------------------------------------
+# A GGUS article body never changes once posted, so any cache of them is
+# valid forever and worth sharing. On a workstation the `ggus_open` package
+# (used by the site-support-triage and facilities-meeting-news skills) keeps
+# one at $XDG_CACHE_HOME/ggus-open/articles.json; we read and write it too,
+# so whichever tool runs first spares the others the fetch. On CI that path
+# does not exist and nothing changes: the repo-local cache restored by
+# actions/cache is used exactly as before.
+SHARED_ARTICLE_CACHE = (
+    Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache"))
+    / "ggus-open" / "articles.json"
+)
+
+
+def _read_json_dict(path):
+    try:
+        data = json.loads(Path(path).read_text())
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
 def load_article_cache():
-    if ARTICLE_CACHE.exists():
-        try:
-            return json.loads(ARTICLE_CACHE.read_text())
-        except Exception:
-            pass
-    return {}
+    """Repo-local cache first, then anything the shared one adds."""
+    cache = _read_json_dict(ARTICLE_CACHE)
+    cache.update(_read_json_dict(SHARED_ARTICLE_CACHE))
+    return cache
 
 
 def save_article_cache(cache):
@@ -314,6 +334,19 @@ def save_article_cache(cache):
         ARTICLE_CACHE.write_text(json.dumps(cache, separators=(",", ":")))
     except Exception as e:
         print(f"[WARN] Could not save article cache: {e}", file=sys.stderr)
+    # Only write the shared cache where one already exists - its presence is
+    # what tells us we are on a workstation rather than on a CI runner, and
+    # creating it on CI would just leave an orphan the next job never sees.
+    if not SHARED_ARTICLE_CACHE.parent.is_dir():
+        return
+    try:
+        merged = {**_read_json_dict(SHARED_ARTICLE_CACHE), **cache}
+        tmp = SHARED_ARTICLE_CACHE.with_name(
+            f"{SHARED_ARTICLE_CACHE.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(merged, separators=(",", ":")))
+        os.replace(tmp, SHARED_ARTICLE_CACHE)      # atomic: two tools may run at once
+    except Exception as e:
+        print(f"[WARN] Could not update shared article cache: {e}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
