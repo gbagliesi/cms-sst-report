@@ -10,12 +10,14 @@ Data sources:
 Usage:
   python3 cms_site_report.py [--token FILE] [--days N] [--out FILE] [--all]
 
-  --token FILE   file containing the GGUS Bearer token (default: data/token_ggus)
+  --token FILE   file containing the GGUS Bearer token
+                 (default: ~/.config/cern/token_ggus, then data/token_ggus)
   --days N       look back N days for metric issues (default: 3)
   --out FILE     HTML output file (default: cms_report.html)
   --all          include all sites, not only those with problems
 
-Token resolution order: --token file > GGUS_TOKEN environment variable
+Token resolution order: --token file > ~/.config/cern/token_ggus >
+data/token_ggus > GGUS_TOKEN environment variable
 """
 
 import argparse
@@ -1708,8 +1710,9 @@ function showTab(name) {{
 # ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description="CMS SST Daily Problem Report")
-    parser.add_argument("--token", default="data/token_ggus",
-                        help="File containing the GGUS Bearer token")
+    parser.add_argument("--token", default=None,
+                        help="File containing the GGUS Bearer token "
+                             "(default: ~/.config/cern/token_ggus, then data/token_ggus)")
     parser.add_argument("--days", type=int, default=3,
                         help=f"Default day window shown in the UI (default: 3, max: {MAX_DAYS})")
     parser.add_argument("--out", default="cms_report.html",
@@ -1718,16 +1721,32 @@ def main():
                         help="Include all sites, even those without problems")
     args = parser.parse_args()
 
-    # --- Token: file > env var GGUS_TOKEN ---
+    # --- Token: --token file, else ~/.config/cern/token_ggus, else the
+    # historical data/token_ggus, else $GGUS_TOKEN (which is how CI runs).
+    # Only ever print where the token came from, never the token.
     import os
-    token_path = Path(args.token)
-    if token_path.exists():
-        token = token_path.read_text().strip()
-    elif os.environ.get("GGUS_TOKEN"):
+    if args.token:
+        candidates = [Path(args.token)]
+    else:
+        candidates = [Path.home() / ".config" / "cern" / "token_ggus",
+                      Path("data/token_ggus")]
+    token = ""
+    for candidate in candidates:
+        try:
+            if candidate.exists():
+                token = candidate.read_text().strip()
+        except OSError as exc:
+            print(f"[WARN] cannot read {candidate}: {exc.strerror}", file=sys.stderr)
+            continue
+        if token:
+            print(f"Using token from {candidate}", file=sys.stderr)
+            break
+    if not token and os.environ.get("GGUS_TOKEN"):
         token = os.environ["GGUS_TOKEN"].strip()
         print("Using token from GGUS_TOKEN env var", file=sys.stderr)
-    else:
-        print("[ERROR] Token not found: set --token FILE or GGUS_TOKEN env var", file=sys.stderr)
+    if not token:
+        print("[ERROR] Token not found: set --token FILE, put it in "
+              "~/.config/cern/token_ggus, or set GGUS_TOKEN", file=sys.stderr)
         sys.exit(1)
 
     # --- Fetch report.html ---
